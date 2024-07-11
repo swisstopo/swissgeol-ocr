@@ -1,7 +1,21 @@
+# Swissgeol.ch OCR service
 
-The script `main.py` processes PDF files, calls the [AWS Textract](https://aws.amazon.com/de/textract/) service for each page to apply OCR, and uses the PyMuPDF and Reportlab libraries to put the detected text into the PDF document (enabling selecting and searching for text). 
+Source code for the OCR scripts that are used at Swiss [
+Federal Office of Topography swisstopo](https://www.swisstopo.admin.ch/) for digitising geological documents for internal use as well as for publication on the [swissgeol.ch](https://www.swissgeol.ch/) platform.
 
-If necessary, PDF pages also rescaled, and images are cropped and/or converted from JPX to JPG.
+The script `main.py` processes PDF files, calls the [AWS Textract](https://aws.amazon.com/de/textract/) service for each page to apply OCR, and uses the PyMuPDF and Reportlab libraries to put the detected text into the PDF document (enabling selecting and searching for text in any PDF viewer).
+
+The resulting functionality is similar to the [OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/) software, but with AWS Textract as the underlying OCR model instead of [Tesseract](https://tesseract-ocr.github.io/). Tesseract is open-source while AWS Textract is a commercial API. However, AWS Textract is more scalable and gives better quality results on our inputs, which is more important for our use cases.
+
+Additional features:
+- If necessary, PDF pages rescaled, and images are cropped and/or converted from JPX to JPG.
+- PDF pages that are already "digitally born" are detected, and can be skipped when applying OCR.
+- When a scanned PDF page already contains digital text from an older OCR run, this text can be removed, and the OCR can be re-applied.
+- Pages with large dimensions are cut into smaller sections, that are sent separately to the AWS Textract service in multiple requests. Indeed, AWS Textract has certain [limits on file size and page dimensions](https://docs.aws.amazon.com/textract/latest/dg/limits-document.html), and even within those limits, the quality of the results is better when the input dimensions are smaller.
+
+### Roadmap
+
+- Allow deploying this OCR script as a microservice (adding an API, logging and monitoring, configurability. etc.), that can be integrated into the applications [assets.swissgeol.ch](https://assets.swissgeol.ch/) ([Github Repo](https://github.com/swisstopo/swissgeol-assets-suite)) and [boreholes.swissgeol.ch](https://boreholes.swissgeol.ch/) ([Github Repo](https://github.com/swisstopo/swissgeol-boreholes-suite)).
 
 ## Installation
 

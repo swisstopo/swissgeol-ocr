@@ -1,0 +1,5 @@
+amazon-textract-textractor
+backoff
+pymupdf
+reportlab
+python-dotenv

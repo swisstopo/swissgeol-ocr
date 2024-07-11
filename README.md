@@ -34,6 +34,10 @@ If an environment variable `OCR_PROFILE` is specified, then environment variable
 
 For example, run the script as `OCR_PROFILE=assets python -m main` to use the environment variables from `.env.assets`.
 
+### AWS credentials
+
+AWS credentials can be provided using a [credentials file](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) (`~/.aws/credentials`). The environment variable `AWS_TEXTRACT_PROFILE` in the configuration examples below refers to a profile in that file.
+
 ### `.env.assets`
 
 - Reads and writes asset files directly from/to S3.

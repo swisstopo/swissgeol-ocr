@@ -56,7 +56,7 @@ def text_lines_from_document(
     else:
         orientation = 0
 
-    return [TextLine(line, orientation - rotate, page_height, transform) for line in page.lines]
+    return [TextLine.from_textract(line, orientation - rotate, page_height, transform) for line in page.lines]
 
 
 def textract(page: fitz.Page, extractor: Textractor, tmp_file_path: str, clip_rect: fitz.Rect, rotate: float) -> list[TextLine]:

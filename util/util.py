@@ -4,9 +4,10 @@ import fitz
 
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfgen.textobject import PDFTextObject
 from textractor import Textractor
 
-from util.readingorder import TextLine
+from util.readingorder import TextLine, TextWord
 from util.applyocr import OCR
 
 
@@ -38,6 +39,47 @@ def process_page(
     lines_to_draw = page_ocr.apply_ocr(clip_rect=page.rect)
     print("  {} new lines found".format(len(lines_to_draw)))
     return lines_to_draw
+
+
+def draw_ocr_word(
+        text: PDFTextObject,
+        line_text_y: float,
+        font_size: float,
+        font_name: str,
+        word: TextWord,
+        next_word: TextWord | None,
+        line: TextLine,
+        line_vertical_padding: float,
+        page_height: float,
+        descent: float
+):
+    wordText = word.text
+    width = word.derotated_rect.width
+
+    word_y_middle = (word.derotated_rect.y0 + word.derotated_rect.y1) / 2
+    if not line.derotated_rect.y0 + line_vertical_padding < word_y_middle < line.derotated_rect.y1 - line_vertical_padding:
+        # Sometimes, especially when AWS Textract detects a slight rotation, that we subsequently ignore in the
+        # TextLine._derotate_geometry() method, there are words on the "line" that actually don't belong to the
+        # same line. If we detect this, we use the word's own vertical positioning.
+        word_vertical_padding = (word.derotated_rect.height - font_size) / 2
+        text_y = (page_height - word.derotated_rect.y1) + word_vertical_padding - descent
+    else:
+        if next_word is not None and next_word.derotated_rect.x0 > word.derotated_rect.x1:
+            # As recommended by the OCRmyPDF implementation: render a space between this word and the next word.
+            # The explicit space helps PDF viewers identify the word break, and horizontally scaling it to
+            # occupy the space the between the words helps PDF viewers avoid "combiningthewordstogether".
+            wordText = word.text + " "
+            width = next_word.derotated_rect.x0 - word.derotated_rect.x0
+
+        # Put everything nicely on one line, even when the individual words are detected with a slightly
+        # different vertical position.
+        text_y = line_text_y
+
+    text_width = pdfmetrics.stringWidth(wordText, font_name, font_size)
+    text.setHorizScale(100 * width / text_width)
+    text.setTextOrigin(word.derotated_rect.x0, text_y)
+    text.textOut(wordText)
+
 
 
 def draw_ocr_text_page(
@@ -76,7 +118,7 @@ def draw_ocr_text_page(
             text = c.beginText(0, 0)
             text.setTextRenderMode(3)
 
-        previous_word = None
+        word = None
         font_size = min(
             line.derotated_rect.height,
             line.derotated_rect.width / pdfmetrics.stringWidth(line.text, font_name, 1)
@@ -89,35 +131,34 @@ def draw_ocr_text_page(
         # coordinate system (reportlabs).
         line_text_y = (page.rect.height - line.derotated_rect.y1) + line_vertical_padding - descent
 
-        for word in line.words():
-            if previous_word is not None:
-                # As recommended by the OCRmyPDF implementation: render a space between this word and the next word.
-                # The explicit space helps PDF viewers identify the word break, and horizontally scaling it to
-                # occupy the space the between the words helps PDF viewers avoid "combiningthewordstogether".
-                separator = " "
-                text_width = pdfmetrics.stringWidth(separator, font_name, font_size)
-                (x, y) = text.getCursor()
-                text.setHorizScale(100 * (word.derotated_rect.x0 - x) / text_width)
-                text.textOut(separator)
+        for next_word in line.words:
+            if word is not None:
+                draw_ocr_word(
+                    text,
+                    line_text_y,
+                    font_size=font_size,
+                    font_name=font_name,
+                    word=word,
+                    next_word=next_word,
+                    line=line,
+                    line_vertical_padding=line_vertical_padding,
+                    page_height=page.rect.height,
+                    descent=descent
+                )
+            word = next_word
 
-            word_y_middle = (word.derotated_rect.y0 + word.derotated_rect.y1) / 2
-            if not line.derotated_rect.y0 + line_vertical_padding < word_y_middle < line.derotated_rect.y1 - line_vertical_padding:
-                # Sometimes, especially when AWS Textract detects a slight rotation, that we subsequently ignore in the
-                # TextLine._derotate_geometry() method, there are words on the "line" that actually don't belong to the
-                # same line. If we detect this, we use the word's own vertical positioning.
-                word_vertical_padding = (word.derotated_rect.height - font_size) / 2
-                text_y = (page.rect.height - word.derotated_rect.y1) + word_vertical_padding - descent
-            else:
-                # Put everything nicely on one line, even when the individual words are detected with a slightly
-                # different vertical position.
-                text_y = line_text_y
-
-            text_width = pdfmetrics.stringWidth(word.text, font_name, font_size)
-            text.setHorizScale(100 * word.derotated_rect.width / text_width)
-            text.setTextOrigin(word.derotated_rect.x0, text_y)
-            text.textOut(word.text)
-
-            previous_word = word
+        draw_ocr_word(
+            text,
+            line_text_y,
+            font_size=font_size,
+            font_name=font_name,
+            word=word,
+            next_word=None,
+            line=line,
+            line_vertical_padding=line_vertical_padding,
+            page_height=page.rect.height,
+            descent=descent
+        )
 
     c.drawText(text)
     c.showPage()

@@ -2,6 +2,7 @@ import fitz
 from util.readingorder import sort_lines, TextLine
 from util.textract import combine_text_lines, textract, clip_rects, MAX_DIMENSION_POINTS
 from textractor import Textractor
+from uuid import uuid4
 
 
 class OCR:
@@ -12,18 +13,23 @@ class OCR:
             page: fitz.Page,
             page_copy: fitz.Page,
             ignore_rects: list[fitz.Rect],
-            tmp_file_path: str
+            tmp_path_prefix: str
     ):
         self.textractor = textractor
         self.confidence_threshold = confidence_threshold
         self.page = page
         self.page_copy = page_copy
         self.ignore_rects = ignore_rects
-        self.tmp_file_path = tmp_file_path
+        self.tmp_path_prefix = tmp_path_prefix
+
+    def tmp_file_path(self, extension: str) -> str:
+        return "{}_{}.{}".format(self.tmp_path_prefix, uuid4(), extension)
 
     def apply_ocr(self, clip_rect: fitz.Rect):
         """Apply OCR with double page workaround and vertical check"""
         text_lines = self._ocr_text_lines(clip_rect, rotate=0)
+
+        print([(line.text, line.confidence) for line in text_lines if self._intersects_middle(line.rect, line.confidence)])
 
         if ((self.page.rect.height < MAX_DIMENSION_POINTS and self.page.rect.width < MAX_DIMENSION_POINTS) and (
                 len(text_lines) > 30
@@ -69,7 +75,7 @@ class OCR:
         text_lines = []
         final_clip_rects = clip_rects(clip_rect)
         for final_clip_rect in final_clip_rects:
-            new_lines = textract(self.page_copy, self.textractor, self.tmp_file_path, final_clip_rect, rotate)
+            new_lines = textract(self.page_copy, self.textractor, self.tmp_file_path("png"), final_clip_rect, rotate)
             text_lines = combine_text_lines(text_lines, new_lines)
         return text_lines
 

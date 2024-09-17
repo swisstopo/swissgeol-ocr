@@ -68,6 +68,8 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
     print(f"{in_page_count} pages")
     for page_index, new_page in enumerate(out_doc):
         page_number = page_index + 1
+        if page_number != 15:
+            continue
         print(f"Page {page_number}")
 
         new_page = resize_page(in_doc, out_doc, page_index)
@@ -80,9 +82,9 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
                 ignore_rects = []
             else:
                 continue
-        tmp_file_path = os.path.join(sys.path[0], "tmp", "{}_page{}.png".format(filename, page_number))
+        tmp_path_prefix = os.path.join(sys.path[0], "tmp", "{}_page{}".format(filename, page_number))
         text_layer_path = os.path.join(sys.path[0], "tmp", "{}_page{}.pdf".format(filename, page_number))
-        lines_to_draw = process_page(out_doc, new_page, extractor, tmp_file_path, confidence_threshold, ignore_rects)
+        lines_to_draw = process_page(out_doc, new_page, extractor, tmp_path_prefix, confidence_threshold, ignore_rects)
         draw_ocr_text_page(new_page, text_layer_path, lines_to_draw)
     out_doc.save(out_path, garbage=3, deflate=True)
 

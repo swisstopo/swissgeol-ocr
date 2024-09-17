@@ -15,7 +15,7 @@ def process_page(
         doc: fitz.Document,
         page: fitz.Page,
         extractor: Textractor,
-        tmp_file_path: str,
+        tmp_path_prefix: str,
         confidence_threshold: float,
         ignore_rects: list[fitz.Rect] | None = None
 ):
@@ -34,7 +34,7 @@ def process_page(
         page=page,
         page_copy=page_copy,
         ignore_rects=ignore_rects,
-        tmp_file_path=tmp_file_path
+        tmp_path_prefix=tmp_path_prefix
     )
     lines_to_draw = page_ocr.apply_ocr(clip_rect=page.rect)
     print("  {} new lines found".format(len(lines_to_draw)))

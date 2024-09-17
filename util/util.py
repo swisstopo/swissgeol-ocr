@@ -214,9 +214,12 @@ def clean_old_ocr_aggressive(page: fitz.Page) -> list[fitz.Rect]:
     for boxType, rectangle in bboxes:
         rect = fitz.Rect(rectangle)
         if boxType == "ignore-text":
-            invisible_text.append(rect)
+            # Some digitally-born documents (e.g. ZH 267124198-bp.pdf) draw the text using fill-path elements and then
+            # add `ignore-text` to make the text searchable/selectable. We don't want to remove these.
+            if all(not rect.intersects(visible) for visible in possibly_visible_text):
+                invisible_text.append(rect)
         # Empty rectangle that should be ignored occurs sometimes, e.g. SwissGeol 44191 page 37.
-        if (boxType == "fill-text" or boxType == "stroke-text") and not rect.is_empty:
+        if (boxType == "fill-text" or boxType == "stroke-text" or boxType == "fill-path") and not rect.is_empty:
             possibly_visible_text.append(rect)
         if boxType == "fill-image":
             invisible_text.extend([text_rect for text_rect in possibly_visible_text if rect.contains(text_rect)])

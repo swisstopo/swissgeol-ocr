@@ -1,4 +1,5 @@
 import fitz
+from pymupdf.mupdf import FzErrorFormat
 
 
 def rotation_from_transform_matrix(transform: fitz.Matrix) -> int | None:
@@ -71,9 +72,13 @@ def crop_images(page: fitz.Page, out_doc: fitz.Document):
                 crop.transform(img_size)
 
                 # print(extracted_img["ext"])
-                img = fitz.Pixmap(extracted_img["image"])
-                cropped_image = fitz.Pixmap(img, int(img.width), int(img.height), crop.round())
+                try:
+                    img = fitz.Pixmap(extracted_img["image"])
+                except FzErrorFormat:
+                    print("  Unsupported image format. Skipping image.")
+                    continue
 
+                cropped_image = fitz.Pixmap(img, int(img.width), int(img.height), crop.round())
                 page.delete_image(xref)
 
                 insert_image_location = fitz.Rect(page.rect)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import fitz
 import os
 import backoff
+import pymupdf
 from botocore.exceptions import ClientError
 from textractor import Textractor
 from trp.t_pipeline import add_page_orientation
@@ -67,7 +68,7 @@ def textract(page: fitz.Page, extractor: Textractor, tmp_file_path: str, clip_re
 
     # Add a margin to the left and right, to help AWS Textact avoid cutting of text at the left and right edge of the
     # page, especially in multi-column page layouts.
-    margin = 200
+    margin = 0  # TODO: reevaluate this param; it does not work well for ZH 267123021-bp.pdf (p2) and 268124571-bp.pdf
     irect_with_margins = fitz.IRect(-margin, 0, pixmap.width + margin, pixmap.height)
     pixmap_with_margins = fitz.Pixmap(pixmap.colorspace, irect_with_margins)
     pixmap_with_margins.clear_with(255)

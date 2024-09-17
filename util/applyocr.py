@@ -11,14 +11,15 @@ class OCR:
             textractor: Textractor,
             confidence_threshold: float,
             page: fitz.Page,
-            page_copy: fitz.Page,
+            doc_copy: fitz.Document,
             ignore_rects: list[fitz.Rect],
             tmp_path_prefix: str
     ):
         self.textractor = textractor
         self.confidence_threshold = confidence_threshold
         self.page = page
-        self.page_copy = page_copy
+        self.doc_copy = doc_copy
+        self.page_copy = doc_copy[0]
         self.ignore_rects = ignore_rects
         self.tmp_path_prefix = tmp_path_prefix
 
@@ -29,8 +30,6 @@ class OCR:
         """Apply OCR with double page workaround and vertical check"""
         text_lines = self._ocr_text_lines(clip_rect, rotate=0)
 
-        print([(line.text, line.confidence) for line in text_lines if self._intersects_middle(line.rect, line.confidence)])
-
         if ((self.page.rect.height < MAX_DIMENSION_POINTS and self.page.rect.width < MAX_DIMENSION_POINTS) and (
                 len(text_lines) > 30
         ) and all(
@@ -39,11 +38,11 @@ class OCR:
             print("  Double page workaround")
             page_rect = self.page.rect
 
-            left_clip_rect = (page_rect * fitz.Matrix(0.5, 1)).round()
+            left_clip_rect = (page_rect * fitz.Matrix(0.5, 1))
             left_text_lines = self._ocr_text_lines(left_clip_rect, rotate=0)
             lines_to_draw = self.apply_vertical_check(left_text_lines, left_clip_rect)
 
-            right_clip_rect = (page_rect * fitz.Matrix(0.5, 1).pretranslate(page_rect.width, 0)).round()
+            right_clip_rect = (page_rect * fitz.Matrix(0.5, 1).pretranslate(page_rect.width, 0))
             right_text_lines = self._ocr_text_lines(right_clip_rect, rotate=0)
             lines_to_draw.extend(self.apply_vertical_check(right_text_lines, right_clip_rect))
 
@@ -75,7 +74,7 @@ class OCR:
         text_lines = []
         final_clip_rects = clip_rects(clip_rect)
         for final_clip_rect in final_clip_rects:
-            new_lines = textract(self.page_copy, self.textractor, self.tmp_file_path("png"), final_clip_rect, rotate)
+            new_lines = textract(self.doc_copy, self.textractor, self.tmp_file_path("pdf"), final_clip_rect, rotate)
             text_lines = combine_text_lines(text_lines, new_lines)
         return text_lines
 

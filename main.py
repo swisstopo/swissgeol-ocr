@@ -68,8 +68,6 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
     print(f"{in_page_count} pages")
     for page_index, new_page in enumerate(out_doc):
         page_number = page_index + 1
-        if page_number != 15:
-            continue
         print(f"Page {page_number}")
 
         new_page = resize_page(in_doc, out_doc, page_index)

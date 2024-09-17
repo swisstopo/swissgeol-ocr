@@ -60,42 +60,28 @@ def text_lines_from_document(
     return [TextLine.from_textract(line, orientation - rotate, page_height, transform) for line in page.lines]
 
 
-def textract(page: fitz.Page, extractor: Textractor, tmp_file_path: str, clip_rect: fitz.Rect, rotate: float) -> list[TextLine]:
-    pixmap = page.get_pixmap(
-        matrix=fitz.Matrix(GET_PIXMAP_ZOOM_FOR_TEXTRACT, GET_PIXMAP_ZOOM_FOR_TEXTRACT).prerotate(rotate),
-        clip=clip_rect
-    )
+def textract(doc: fitz.Document, extractor: Textractor, tmp_file_path: str, clip_rect: fitz.Rect, rotate: float) -> list[TextLine]:
+    page = doc[0]
 
-    # Add a margin to the left and right, to help AWS Textact avoid cutting of text at the left and right edge of the
-    # page, especially in multi-column page layouts.
-    margin = 0  # TODO: reevaluate this param; it does not work well for ZH 267123021-bp.pdf (p2) and 268124571-bp.pdf
-    irect_with_margins = fitz.IRect(-margin, 0, pixmap.width + margin, pixmap.height)
-    pixmap_with_margins = fitz.Pixmap(pixmap.colorspace, irect_with_margins)
-    pixmap_with_margins.clear_with(255)
-    pixmap.set_origin(0, 0)
-    pixmap_with_margins.copy(pixmap, pixmap.irect)
-    # create a copy that is not modified by the shrinking
-    pixmap_with_margins_rect = fitz.IRect(pixmap_with_margins.irect)
+    clip_transformed = clip_rect * page.rect.torect(page.cropbox)
 
-    # Respect resolution and file size limits of AWS Textract, otherwise an InvalidParameterException might be raised
-    while pixmap_with_margins.width > 10000 or pixmap_with_margins.height > 10000:
-        pixmap_with_margins.shrink(1)
-    pixmap_with_margins.save(tmp_file_path)
-    while os.path.getsize(tmp_file_path) >= 10 * 1024 * 1024:  # 10 MB
-        pixmap_with_margins.shrink(1)
-        pixmap_with_margins.save(tmp_file_path)
-
+    page.set_cropbox(clip_transformed.intersect(page.mediabox))  # TODO make more robust, e.g. 267123080-bp.pdf, 268124569-bp.pdf
+    old_rotation = page.rotation
+    page.set_rotation(page.rotation + rotate)
+    doc.save(tmp_file_path)
+    page.set_rotation(old_rotation)
     document = call_textract(extractor, tmp_file_path)
     os.remove(tmp_file_path)
 
     # Matrix to transform Textract coordinates via Pixmap coordinates back to PyMuPDF coordinates
+    # TODO cleanup method after removing the Pixmap creation
     transform = textract_coordinate_transform(
         clip_rect=clip_rect,
-        pixmap_rect=fitz.IRect(pixmap.irect),
-        pixmap_with_margin_rect=pixmap_with_margins_rect,
+        pixmap_rect=fitz.IRect(0,0,1,1),
+        pixmap_with_margin_rect=fitz.IRect(0,0,1,1),
         rotate=rotate
     )
-    return text_lines_from_document(document, transform, rotate, page.rect.height)
+    return text_lines_from_document(document, transform, rotate, doc[0].rect.height)
 
 
 def backoff_hdlr(details):
@@ -107,7 +93,11 @@ def backoff_hdlr(details):
                       on_backoff=backoff_hdlr,
                       base=2)
 def call_textract(extractor: Textractor, tmp_file_path: str) -> t1.Document:
-    j = t_call.call_textract(input_document=tmp_file_path, boto3_textract_client=extractor.textract_client)
+    j = t_call.call_textract(
+        input_document=tmp_file_path,
+        boto3_textract_client=extractor.textract_client,
+        call_mode=t_call.Textract_Call_Mode.FORCE_SYNC
+    )
     t_document: t2.TDocument = t2.TDocumentSchema().load(j)
     try:
         t_document = add_page_orientation(t_document)

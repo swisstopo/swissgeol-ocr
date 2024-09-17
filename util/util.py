@@ -26,13 +26,12 @@ def process_page(
 
     doc_copy = fitz.Document()
     doc_copy.insert_pdf(doc, from_page=page.number, to_page=page.number)
-    page_copy = doc_copy[0]
 
     page_ocr = OCR(
         textractor=extractor,
         confidence_threshold=confidence_threshold,
         page=page,
-        page_copy=page_copy,
+        doc_copy=doc_copy,
         ignore_rects=ignore_rects,
         tmp_path_prefix=tmp_path_prefix
     )

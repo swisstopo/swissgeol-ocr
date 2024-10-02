@@ -3,3 +3,10 @@ backoff
 pymupdf
 reportlab
 python-dotenv
+python-multipart
+pydantic
+pydantic-settings
+fastapi[standard]
+boto3-stubs[essentials]
+boto3-stubs[s3]
+boto3-stubs[textract]

@@ -1,0 +1,18 @@
+@file = 4178.pdf
+// @file = 10000.pdf
+
+### Start File Processing
+POST http://localhost:8000
+Content-Type: application/json
+
+{
+  "file": "{{file}}"
+}
+
+### Collect File Result
+POST http://localhost:8000/collect
+Content-Type: application/json
+
+{
+  "file": "{{file}}"
+}

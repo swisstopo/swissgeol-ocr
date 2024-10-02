@@ -1,0 +1,10 @@
+services:
+  api:
+    image: swissgeol-ocr/api:dev
+    build:
+      context: .
+    volumes:
+      - .env:.env
+      - .env.assets:.env.assets
+    ports:
+      - "8000:8000"

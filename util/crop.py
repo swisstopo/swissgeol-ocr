@@ -55,6 +55,10 @@ def crop_images(page: fitz.Page, out_doc: fitz.Document):
                 print("  Cropping {} image (bbox {}, page.rect {}).".format(extension, image_bbox, page.rect))
                 transform = fitz.Matrix(dict["transform"])
 
+                if not page.rect.intersects(image_bbox):
+                    print("  Image does not intersect the visible part of the page. Skipping image.")
+                    continue
+
                 rotation = rotation_from_transform_matrix(transform)
                 if rotation is None:
                     print("  Image rotation could not be computed from transform matrix. Skipping image.")

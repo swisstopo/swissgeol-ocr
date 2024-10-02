@@ -61,16 +61,17 @@ class AssetSource:
         pass
 
 
+@dataclass
 class FileAssetSource(AssetSource):
-    def __init__(self, in_path: Path):
-        self.in_path = in_path
+    in_path: Path
+    ignore_filenames: set[str]
 
     def iterator(self) -> Iterator[AssetItem]:
         if self.in_path.is_dir():
             return (
                 FileAssetItem(local_path=path, filename=os.path.basename(path))
                 for path in sorted(self.in_path.glob("*"))
-                if os.path.basename(path).endswith(".pdf")
+                if os.path.basename(path).endswith(".pdf") and os.path.basename(path) not in self.ignore_filenames
             )
         else:
             return [

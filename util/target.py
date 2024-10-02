@@ -20,6 +20,10 @@ class AssetTarget:
     def cleanup(self, item: AssetItem):
         pass
 
+    @abstractmethod
+    def existing_filenames(self) -> set[str]:
+        pass
+
 
 @dataclass
 class FileAssetTarget(AssetTarget):
@@ -33,6 +37,12 @@ class FileAssetTarget(AssetTarget):
 
     def cleanup(self, item: AssetItem):
         pass
+
+    def existing_filenames(self) -> set[str]:
+        return {
+            os.path.basename(path)
+            for path in sorted(self.out_path.glob("*"))
+        }
 
 
 @dataclass
@@ -52,11 +62,9 @@ class S3AssetTarget(AssetTarget):
         if self.do_cleanup:
             os.remove(self.local_path(item))
 
-    def existing_filenames(self):
-        existing_filenames = {
+    def existing_filenames(self) -> set[str]:
+        return {
             S3AssetItem.key_to_filename(obj.key)
             for obj in self.s3_bucket.objects.filter(Prefix=self.s3_prefix)
         }
-        print("Found {} existing objects in output path.".format(len(existing_filenames)))
-        return existing_filenames
 

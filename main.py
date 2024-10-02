@@ -2,7 +2,7 @@ import boto3
 from textractor import Textractor
 
 from util.source import S3AssetSource, FileAssetSource
-from util.target import S3AssetTarget, FileAssetTarget
+from util.target import S3AssetTarget, FileAssetTarget, AssetTarget
 from util.util import process_page, clean_old_ocr, new_ocr_needed, draw_ocr_text_page, clean_old_ocr_aggressive
 from util.crop import crop_images
 from util.resize import resize_page
@@ -33,14 +33,16 @@ def load_target(config):
         sys.exit(1)
 
 
-def load_source(config, target):
+def load_source(config, target: AssetTarget):
+    if config["OCR_INPUT_IGNORE_EXISTING"] == "TRUE":
+        ignore_filenames = target.existing_filenames()
+        print("Found {} existing objects in output path.".format(len(ignore_filenames)))
+    else:
+        ignore_filenames = []
+
     if config["OCR_INPUT_TYPE"] == "S3":
         s3_session = boto3.Session(profile_name=config["OCR_INPUT_AWS_PROFILE"])
         s3 = s3_session.resource('s3')
-        if config["OCR_INPUT_IGNORE_EXISTING"] == "TRUE":
-            ignore_filenames = target.existing_filenames()
-        else:
-            ignore_filenames = []
 
         return S3AssetSource(
             s3_bucket=s3.Bucket(config["OCR_INPUT_S3_BUCKET"]),
@@ -52,7 +54,8 @@ def load_source(config, target):
         )
     elif config["OCR_INPUT_TYPE"] == "path":
         return FileAssetSource(
-            in_path=Path(config["OCR_INPUT_PATH"])
+            in_path=Path(config["OCR_INPUT_PATH"]),
+            ignore_filenames=ignore_filenames
         )
     else:
         print("No OCR_INPUT_TYPE specified.")

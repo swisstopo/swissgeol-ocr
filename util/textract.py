@@ -62,14 +62,18 @@ def text_lines_from_document(
 
 def textract(doc: fitz.Document, extractor: Textractor, tmp_file_path: str, clip_rect: fitz.Rect, rotate: float) -> list[TextLine]:
     page = doc[0]
+    old_rotation = page.rotation
+    old_cropbox = page.cropbox
 
     clip_transformed = clip_rect * page.rect.torect(page.cropbox)
 
-    page.set_cropbox(clip_transformed.intersect(page.mediabox))  # TODO make more robust, e.g. 267123080-bp.pdf, 268124569-bp.pdf
-    old_rotation = page.rotation
+    page.set_cropbox(clip_transformed.intersect(page.mediabox))  # TODO make more robust, e.g. 267123080-bp.pdf
     page.set_rotation(page.rotation + rotate)
     doc.save(tmp_file_path)
+
     page.set_rotation(old_rotation)
+    page.set_cropbox(old_cropbox.intersect(page.mediabox))
+
     document = call_textract(extractor, tmp_file_path)
     os.remove(tmp_file_path)
 

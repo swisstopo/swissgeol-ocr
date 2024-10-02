@@ -1,14 +1,15 @@
+import gc
 import os
+from time import sleep
 
 import fitz
-
-from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfgen import canvas
 from reportlab.pdfgen.textobject import PDFTextObject
-from textractor import Textractor
+from mypy_boto3_textract import TextractClient as Textractor
 
-from util.readingorder import TextLine, TextWord
-from util.applyocr import OCR
+from ocr.applyocr import OCR
+from ocr.readingorder import TextLine, TextWord
 
 
 def process_page(
@@ -163,14 +164,12 @@ def draw_ocr_text_page(
     c.showPage()
     c.save()
 
-    text_layer_doc = fitz.open(text_layer_path)
-    original_rotation = page.rotation
-    page.set_rotation(0)
-    page.show_pdf_page(page.rect, text_layer_doc, rotate=original_rotation)
-    page.set_rotation(original_rotation)
-    os.remove(text_layer_path)
+    with fitz.open(text_layer_path) as text_layer_doc:
+        original_rotation = page.rotation
+        page.set_rotation(0)
+        page.show_pdf_page(page.rect, text_layer_doc, rotate=original_rotation)
+        page.set_rotation(original_rotation)
     return
-
 
 def new_ocr_needed(page: fitz.Page) -> bool:
     bboxes = page.get_bboxlog()
@@ -180,6 +179,7 @@ def new_ocr_needed(page: fitz.Page) -> bool:
         if (boxType == "fill-text" or boxType == "stroke-text") and not fitz.Rect(rectangle).is_empty:
             print("  skipped")
             return False
+        pass
     return True
 
 

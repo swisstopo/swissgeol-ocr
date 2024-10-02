@@ -1,0 +1,7 @@
+### Process File
+POST http://localhost:8000
+Content-Type: application/json
+
+{
+  "file": "467.pdf"
+}

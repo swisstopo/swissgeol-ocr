@@ -1,7 +1,7 @@
 import fitz
-from util.readingorder import sort_lines, TextLine
-from util.textract import combine_text_lines, textract, clip_rects, MAX_DIMENSION_POINTS
-from textractor import Textractor
+from ocr.readingorder import sort_lines, TextLine
+from ocr.textract import combine_text_lines, textract, clip_rects, MAX_DIMENSION_POINTS
+from mypy_boto3_textract import TextractClient as Textractor
 from uuid import uuid4
 
 

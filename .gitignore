@@ -1,2 +1,8 @@
 /venv
+/.venv
 /.env*
+
+__pycache__
+
+# JetBrains IDE configurations
+.idea/

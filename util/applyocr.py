@@ -10,16 +10,15 @@ class OCR:
             self,
             textractor: Textractor,
             confidence_threshold: float,
-            page: fitz.Page,
-            doc_copy: fitz.Document,
+            textract_doc: fitz.Document,
             ignore_rects: list[fitz.Rect],
             tmp_path_prefix: str
     ):
         self.textractor = textractor
         self.confidence_threshold = confidence_threshold
-        self.page = page
-        self.doc_copy = doc_copy
-        self.page_copy = doc_copy[0]
+        # single-page PDF document that will be sent to AWS Textract
+        self.textract_doc = textract_doc
+        self.page = textract_doc[0]
         self.ignore_rects = ignore_rects
         self.tmp_path_prefix = tmp_path_prefix
 
@@ -58,7 +57,7 @@ class OCR:
         if vertical_detected:
             print("  Potential vertical text detected. Running OCR again with horizontal text masked.")
             for rect in processed_rects:
-                self.page_copy.draw_rect(
+                self.page.draw_rect(
                     rect * self.page.derotation_matrix,
                     width=0,
                     fill=fitz.utils.getColor("white")
@@ -74,7 +73,7 @@ class OCR:
         text_lines = []
         final_clip_rects = clip_rects(clip_rect)
         for final_clip_rect in final_clip_rects:
-            new_lines = textract(self.doc_copy, self.textractor, self.tmp_file_path("pdf"), final_clip_rect, rotate)
+            new_lines = textract(self.textract_doc, self.textractor, self.tmp_file_path("pdf"), final_clip_rect, rotate)
             text_lines = combine_text_lines(text_lines, new_lines)
         return text_lines
 

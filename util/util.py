@@ -24,14 +24,14 @@ def process_page(
 
     page.clean_contents()
 
-    doc_copy = fitz.Document()
-    doc_copy.insert_pdf(doc, from_page=page.number, to_page=page.number)
+    # create a single-page PDF document that can be modified if necessary, before being sent to AWS Textract
+    textract_doc = fitz.Document()
+    textract_doc.insert_pdf(doc, from_page=page.number, to_page=page.number)
 
     page_ocr = OCR(
         textractor=extractor,
         confidence_threshold=confidence_threshold,
-        page=page,
-        doc_copy=doc_copy,
+        textract_doc=textract_doc,
         ignore_rects=ignore_rects,
         tmp_path_prefix=tmp_path_prefix
     )

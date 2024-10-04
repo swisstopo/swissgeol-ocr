@@ -75,7 +75,6 @@ def crop_images(page: fitz.Page, out_doc: fitz.Document):
                 crop.transform(transform_inv)
                 crop.transform(img_size)
 
-                # print(extracted_img["ext"])
                 try:
                     img = fitz.Pixmap(extracted_img["image"])
                 except FzErrorFormat:

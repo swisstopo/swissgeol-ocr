@@ -69,7 +69,7 @@ def textract(doc: fitz.Document, extractor: Textractor, tmp_file_path: str, clip
 
     page.set_cropbox(clip_transformed.intersect(page.mediabox))  # TODO make more robust, e.g. 267123080-bp.pdf
     page.set_rotation(page.rotation + rotate)
-    doc.save(tmp_file_path)
+    doc.save(tmp_file_path, deflate=True)
 
     page.set_rotation(old_rotation)
     page.set_cropbox(old_cropbox.intersect(page.mediabox))

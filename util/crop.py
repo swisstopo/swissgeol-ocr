@@ -33,6 +33,10 @@ def crop_images(page: fitz.Page, out_doc: fitz.Document):
             image_bbox = fitz.Rect(*dict["bbox"])
 
             extension = extracted_img['ext']
+            if extension == 'jb2':
+                # Example PDF file with a JBIG2 image: A204.pdf
+                print("  Skipping JBIG2 image.")
+                continue
             if extension == 'jpx':
                 # Some viewer, most notably the Edge browser, have problems displaying JPX images (slow / bad quality).
                 # Therefore, we convert them to JPG.

@@ -1,50 +1,79 @@
 import os
 import shutil
 import subprocess
-import uuid
 from typing import Annotated
 
 import fitz
-from fastapi import FastAPI, Depends, Response, status, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import FastAPI, Depends, status, HTTPException, BackgroundTasks
 from mypy_boto3_textract import TextractClient as Textractor
+from pydantic import BaseModel, Field
+from starlette.responses import JSONResponse
 
 from aws import aws
 from ocr.crop import crop_images
 from ocr.resize import resize_page
 from ocr.util import process_page, clean_old_ocr, new_ocr_needed, draw_ocr_text_page, clean_old_ocr_aggressive
+from utils import task
 from utils.settings import Settings, get_settings
+from utils.task import TaskId
 
 app = FastAPI()
 
 
-class Input(BaseModel):
+class StartPayload(BaseModel):
     file: str = Field(min_length=1)
 
 
 @app.post("/")
-def process(
-        input: Input,
+def start(
+        payload: StartPayload,
         settings: Annotated[Settings, Depends(get_settings)],
+        background_tasks: BackgroundTasks,
 ):
-    if not input.file.endswith('.pdf'):
+    if not payload.file.endswith('.pdf'):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": "Invalid request", "message": "input must be a PDF file"}
         )
 
-    id = f'{uuid.uuid4()}'
-    tmp_dir = os.path.join(settings.tmp_path, id)
+    task_id = task.start(payload.file, background_tasks, lambda task_id: process(task_id, payload, settings))
+    if task_id is None:
+        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"message": "file is already being processed"})
+    return JSONResponse(status_code=status.HTTP_201_CREATED, content={"token": task_id})
+
+
+class CollectPayload(BaseModel):
+    token: TaskId
+
+
+@app.post("/collect")
+def collect(
+        payload: CollectPayload,
+):
+    result = task.collect_result(payload.token)
+    if result is None and not task.has_task(payload.token):
+        return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"message": "invalid token"})
+    return JSONResponse(status_code=status.HTTP_200_OK, content={
+        "has_finished": result is not None,
+        "data": result,
+    })
+
+
+def process(
+        task_id: TaskId,
+        payload: StartPayload,
+        settings: Annotated[Settings, Depends(get_settings)],
+):
+    tmp_dir = os.path.join(settings.tmp_path, task_id)
     os.makedirs(tmp_dir, exist_ok=True)
 
     input_path = os.path.join(tmp_dir, "input.pdf")
     output_path = os.path.join(tmp_dir, "output.pdf")
 
-
     aws_client = aws.connect(settings)
     aws.load_file(
         aws_client.bucket(settings.ocr_input_s3_bucket),
-        f'{settings.ocr_input_s3_prefix}{input.file}',
+        f'{settings.ocr_input_s3_prefix}{payload.file}',
         input_path,
     )
 
@@ -80,14 +109,14 @@ def process(
             settings.ocr_strategy_aggressive,
         )
 
-    aws.load_file(
+    aws.store_file(
         aws_client.bucket(settings.ocr_output_s3_bucket),
-        f'{settings.ocr_output_s3_prefix}{input.file}',
+        f'{settings.ocr_output_s3_prefix}{payload.file}',
         output_path,
     )
 
     shutil.rmtree(tmp_dir)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return ()
 
 
 def process_text(
@@ -133,4 +162,3 @@ def process_text(
         raise ValueError(
             "Output document contains {} pages instead of {}".format(out_page_count, in_page_count)
         )
-

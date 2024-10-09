@@ -73,8 +73,8 @@ def process(
 
     aws_client = aws.connect(settings)
     aws.load_file(
-        aws_client.bucket(settings.ocr_input_s3_bucket),
-        f'{settings.ocr_input_s3_prefix}{payload.file}',
+        aws_client.bucket(settings.s3_input_bucket),
+        f'{settings.s3_input_folder}{payload.file}',
         input_path,
     )
 
@@ -85,7 +85,7 @@ def process(
             tmp_dir,
             aws_client.textract,
             settings.confidence_threshold,
-            settings.ocr_strategy_aggressive
+            settings.use_aggressive_strategy
         )
     except ValueError as e:
         gs_preprocess_path = os.path.join(tmp_dir, "gs.pdf")
@@ -107,12 +107,12 @@ def process(
             tmp_dir,
             aws_client.textract,
             settings.confidence_threshold,
-            settings.ocr_strategy_aggressive,
+            settings.use_aggressive_strategy,
         )
 
     aws.store_file(
-        aws_client.bucket(settings.ocr_output_s3_bucket),
-        f'{settings.ocr_output_s3_prefix}{payload.file}',
+        aws_client.bucket(settings.s3_output_bucket),
+        f'{settings.s3_output_folder}{payload.file}',
         output_path,
     )
 

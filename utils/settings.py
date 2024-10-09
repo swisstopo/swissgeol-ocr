@@ -8,17 +8,16 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     tmp_path: str
 
-    ocr_profile: str | None = None
-    ocr_role: str | None = None
+    aws_profile: str | None = None
 
-    ocr_input_s3_bucket: str
-    ocr_input_s3_prefix: str
+    s3_input_bucket: str
+    s3_input_folder: str
 
-    ocr_output_s3_bucket: str
-    ocr_output_s3_prefix: str
+    s3_output_bucket: str
+    s3_output_folder: str
 
     confidence_threshold: float
-    ocr_strategy_aggressive: bool = False
+    use_aggressive_strategy: bool = False
 
 
 print(f"Loading env variables from '.env'.")

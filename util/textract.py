@@ -63,7 +63,12 @@ def textract(doc: fitz.Document, extractor: Textractor, tmp_file_path: str, clip
 
     clip_transformed = clip_rect * page.rect.torect(page.cropbox)
 
-    page.set_cropbox(clip_transformed.intersect(page.mediabox))  # TODO make more robust, e.g. 267123080-bp.pdf
+    # Even thought the documentation says that the cropbox is always contained in the mediabox, this is not always the
+    # case, e.g. 267123080-bp.pdf. The discrepancies are usually very small (floating point accuracy errors?). Even so,
+    # a trivial call such as page.set_cropbox(page.cropbox) will fail with an "CropBox not in MediaBox" error, if this
+    # is the case. To avoid such errors, we take an explicit intersection with the mediabox whenever we call
+    # page.set_cropbox(). Possibly related to: https://github.com/pymupdf/PyMuPDF/issues/1615
+    page.set_cropbox(clip_transformed.intersect(page.mediabox))
     page.set_rotation(page.rotation + rotate)
     doc.save(tmp_file_path, deflate=True)
 

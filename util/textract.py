@@ -19,25 +19,19 @@ MAX_DIMENSION_POINTS = 2000
 
 def textract_coordinate_transform(
         clip_rect: fitz.Rect,
-        pixmap_rect: fitz.IRect,
-        pixmap_with_margin_rect: fitz.IRect,
         rotate: float
 ) -> fitz.Matrix:
-    # The rectangle surrounding the rotated version of the clip (corresponds to the image that was sent to AWS Textract,
-    # without margins)
+    # The rectangle surrounding the rotated version of the clip (corresponds to the page that was sent to AWS Textract)
     rotated_clip_rect = (clip_rect.quad * fitz.Matrix(1, 1).prerotate(rotate)).rect
 
-    # Matrix to transform the Textract coordinates to the pixmap coordinates
-    transform1 = fitz.Rect(0, 0, 1, 1).torect(pixmap_with_margin_rect)
-
-    # Matrix to transform the pixmap coordinates back to the rotated PyMuPDF coordinates
-    transform2 = pixmap_rect.torect(rotated_clip_rect)
+    # Matrix to transform the Textract coordinates to the rotated PyMuPDF coordinates
+    transform1 = fitz.Rect(0, 0, 1, 1).torect(rotated_clip_rect)
 
     # Matrix to change the PyMuPDF coordinates back to the unrotated version
-    transform3 = fitz.Matrix(1, 1).prerotate(-rotate)
+    transform2 = fitz.Matrix(1, 1).prerotate(-rotate)
 
     # Matrix to transform the Textract coordinates back to the original unrotated PyMuPDF coordinates
-    return transform1 * transform2 * transform3
+    return transform1 * transform2
 
 
 def text_lines_from_document(
@@ -81,14 +75,8 @@ def textract(doc: fitz.Document, extractor: Textractor, tmp_file_path: str, clip
     if document is None:
         return []
 
-    # Matrix to transform Textract coordinates via Pixmap coordinates back to PyMuPDF coordinates
-    # TODO cleanup method after removing the Pixmap creation
-    transform = textract_coordinate_transform(
-        clip_rect=clip_rect,
-        pixmap_rect=fitz.IRect(0,0,1,1),
-        pixmap_with_margin_rect=fitz.IRect(0,0,1,1),
-        rotate=rotate
-    )
+    # Matrix to transform Textract coordinates back to PyMuPDF coordinates
+    transform = textract_coordinate_transform(clip_rect=clip_rect, rotate=rotate)
     return text_lines_from_document(document, transform, rotate, doc[0].rect.height)
 
 

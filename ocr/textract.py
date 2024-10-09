@@ -88,7 +88,8 @@ def backoff_hdlr(details):
 @backoff.on_exception(backoff.expo,
                       ClientError,
                       on_backoff=backoff_hdlr,
-                      base=2)
+                      base=2,
+                      max_tries=3)
 def call_textract(extractor: Textractor, tmp_file_path: str) -> t1.Document | None:
     try:
         j = t_call.call_textract(

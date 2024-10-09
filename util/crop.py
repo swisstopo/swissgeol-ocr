@@ -26,7 +26,6 @@ def crop_images(page: fitz.Page, out_doc: fitz.Document):
         return
 
     images_info = {dict["xref"]: dict for dict in page.get_image_info(xrefs=True)}
-
     for xref, dict in images_info.items():
         try:
             img_size = fitz.Matrix(dict["width"], dict["height"])
@@ -34,6 +33,10 @@ def crop_images(page: fitz.Page, out_doc: fitz.Document):
             image_bbox = fitz.Rect(*dict["bbox"])
 
             extension = extracted_img['ext']
+            if extension == 'jb2':
+                # Example PDF file with a JBIG2 image: A204.pdf
+                print("  Skipping JBIG2 image.")
+                continue
             if extension == 'jpx':
                 # Some viewer, most notably the Edge browser, have problems displaying JPX images (slow / bad quality).
                 # Therefore, we convert them to JPG.
@@ -75,9 +78,11 @@ def crop_images(page: fitz.Page, out_doc: fitz.Document):
                 crop.transform(transform_inv)
                 crop.transform(img_size)
 
-                # print(extracted_img["ext"])
                 try:
-                    img = fitz.Pixmap(extracted_img["image"])
+                    img = fitz.Pixmap(out_doc, xref)
+                    # Force the image into RGB color-space. Otherwise, colors might get distorted, e.g. in A8297.pdf.
+                    # See also https://github.com/pymupdf/PyMuPDF/issues/725#issuecomment-730561405
+                    img = fitz.Pixmap(fitz.csRGB, img)
                 except FzErrorFormat:
                     print("  Unsupported image format. Skipping image.")
                     continue

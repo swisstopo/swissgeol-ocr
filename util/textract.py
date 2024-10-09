@@ -3,7 +3,6 @@ from __future__ import annotations
 import fitz
 import os
 import backoff
-import pymupdf
 from botocore.exceptions import ClientError
 from textractor import Textractor
 from trp.t_pipeline import add_page_orientation
@@ -12,13 +11,10 @@ import trp as t1
 import textractcaller.t_call as t_call
 import statistics
 
-
 from util.readingorder import TextLine
 
 
-GET_PIXMAP_ZOOM_FOR_TEXTRACT = 2
-MAX_DIMENSION_PIXELS = 4000
-MAX_DIMENSION_POINTS = MAX_DIMENSION_PIXELS // GET_PIXMAP_ZOOM_FOR_TEXTRACT
+MAX_DIMENSION_POINTS = 2000
 
 
 def textract_coordinate_transform(
@@ -67,15 +63,23 @@ def textract(doc: fitz.Document, extractor: Textractor, tmp_file_path: str, clip
 
     clip_transformed = clip_rect * page.rect.torect(page.cropbox)
 
-    page.set_cropbox(clip_transformed.intersect(page.mediabox))  # TODO make more robust, e.g. 267123080-bp.pdf
+    # Even thought the documentation says that the cropbox is always contained in the mediabox, this is not always the
+    # case, e.g. 267123080-bp.pdf. The discrepancies are usually very small (floating point accuracy errors?). Even so,
+    # a trivial call such as page.set_cropbox(page.cropbox) will fail with an "CropBox not in MediaBox" error, if this
+    # is the case. To avoid such errors, we take an explicit intersection with the mediabox whenever we call
+    # page.set_cropbox(). Possibly related to: https://github.com/pymupdf/PyMuPDF/issues/1615
+    page.set_cropbox(clip_transformed.intersect(page.mediabox))
     page.set_rotation(page.rotation + rotate)
-    doc.save(tmp_file_path)
+    doc.save(tmp_file_path, deflate=True)
 
     page.set_rotation(old_rotation)
     page.set_cropbox(old_cropbox.intersect(page.mediabox))
 
     document = call_textract(extractor, tmp_file_path)
     os.remove(tmp_file_path)
+
+    if document is None:
+        return []
 
     # Matrix to transform Textract coordinates via Pixmap coordinates back to PyMuPDF coordinates
     # TODO cleanup method after removing the Pixmap creation
@@ -96,13 +100,18 @@ def backoff_hdlr(details):
                       ClientError,
                       on_backoff=backoff_hdlr,
                       base=2)
-def call_textract(extractor: Textractor, tmp_file_path: str) -> t1.Document:
-    j = t_call.call_textract(
-        input_document=tmp_file_path,
-        boto3_textract_client=extractor.textract_client,
-        call_mode=t_call.Textract_Call_Mode.FORCE_SYNC
-    )
-    t_document: t2.TDocument = t2.TDocumentSchema().load(j)
+def call_textract(extractor: Textractor, tmp_file_path: str) -> t1.Document | None:
+    try:
+        j = t_call.call_textract(
+            input_document=tmp_file_path,
+            boto3_textract_client=extractor.textract_client,
+            call_mode=t_call.Textract_Call_Mode.FORCE_SYNC
+        )
+        t_document: t2.TDocument = t2.TDocumentSchema().load(j)
+    except extractor.textract_client.exceptions.InvalidParameterException:
+        print("Encountered InvalidParameterException from Textract. Page might require more than 10MB memory. Skipping page.")
+        return None
+
     try:
         t_document = add_page_orientation(t_document)
     except statistics.StatisticsError:

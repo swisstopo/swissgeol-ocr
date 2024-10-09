@@ -1,10 +1,11 @@
 import os
 import shutil
 import subprocess
+import uuid
 from typing import Annotated
 
 import fitz
-from fastapi import FastAPI, Depends, status, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Depends, status, HTTPException, BackgroundTasks, Response
 from mypy_boto3_textract import TextractClient as Textractor
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
@@ -15,7 +16,6 @@ from ocr.resize import resize_page
 from ocr.util import process_page, clean_old_ocr, new_ocr_needed, draw_ocr_text_page, clean_old_ocr_aggressive
 from utils import task
 from utils.settings import Settings, get_settings
-from utils.task import TaskId
 
 app = FastAPI()
 
@@ -36,23 +36,24 @@ def start(
             detail={"error": "Invalid request", "message": "input must be a PDF file"}
         )
 
-    task_id = task.start(payload.file, background_tasks, lambda task_id: process(task_id, payload, settings))
-    if task_id is None:
-        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"message": "file is already being processed"})
-    return JSONResponse(status_code=status.HTTP_201_CREATED, content={"token": task_id})
+    task.start(payload.file, background_tasks, lambda: process(payload, settings))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 class CollectPayload(BaseModel):
-    token: TaskId
+    file: str = Field(min_length=1)
 
 
 @app.post("/collect")
 def collect(
         payload: CollectPayload,
 ):
-    result = task.collect_result(payload.token)
-    if result is None and not task.has_task(payload.token):
-        return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"message": "invalid token"})
+    result = task.collect_result(payload.file)
+    if result is None and not task.has_task(payload.file):
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"message": "OCR is not running for this file"},
+        )
     return JSONResponse(status_code=status.HTTP_200_OK, content={
         "has_finished": result is not None,
         "data": result,
@@ -60,10 +61,10 @@ def collect(
 
 
 def process(
-        task_id: TaskId,
         payload: StartPayload,
         settings: Annotated[Settings, Depends(get_settings)],
 ):
+    task_id = f"{uuid.uuid4()}"
     tmp_dir = os.path.join(settings.tmp_path, task_id)
     os.makedirs(tmp_dir, exist_ok=True)
 

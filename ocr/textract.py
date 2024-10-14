@@ -71,7 +71,6 @@ def textract(doc: fitz.Document, extractor: Textractor, tmp_file_path: str, clip
     page.set_cropbox(old_cropbox.intersect(page.mediabox))
 
     document = call_textract(extractor, tmp_file_path)
-    os.remove(tmp_file_path)
 
     if document is None:
         return []

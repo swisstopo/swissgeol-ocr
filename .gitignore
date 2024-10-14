@@ -6,3 +6,5 @@ __pycache__
 
 # JetBrains IDE configurations
 .idea/
+
+/tmp

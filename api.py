@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse
 import ocr
 from aws import aws
 from utils import task
-from utils.settings import Settings, get_settings
+from utils.settings import ApiSettings, api_settings
 
 app = FastAPI()
 
@@ -23,7 +23,7 @@ class StartPayload(BaseModel):
 @app.post("/")
 def start(
         payload: StartPayload,
-        settings: Annotated[Settings, Depends(get_settings)],
+        settings: Annotated[ApiSettings, Depends(api_settings)],
         background_tasks: BackgroundTasks,
 ):
     if not payload.file.endswith('.pdf'):
@@ -58,7 +58,7 @@ def collect(
 
 def process(
         payload: StartPayload,
-        settings: Annotated[Settings, Depends(get_settings)],
+        settings: Annotated[ApiSettings, Depends(api_settings)],
 ):
     task_id = f"{uuid.uuid4()}"
     tmp_dir = os.path.join(settings.tmp_path, task_id)

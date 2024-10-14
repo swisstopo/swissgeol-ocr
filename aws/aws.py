@@ -5,7 +5,7 @@ from mypy_boto3_s3 import S3ServiceResource
 from mypy_boto3_s3.service_resource import Bucket
 from mypy_boto3_textract import TextractClient as Textractor
 
-from utils.settings import Settings
+from utils.settings import ApiSettings
 
 type S3Bucket = any
 
@@ -19,7 +19,7 @@ class Client:
         return self.s3.Bucket(name)
 
 
-def connect(settings: Settings) -> Client:
+def connect(settings: ApiSettings) -> Client:
     has_profile = is_set(settings.aws_profile)
     has_access_key = is_set(settings.aws_access_key)
     has_secret_access_key = is_set(settings.aws_secret_access_key)

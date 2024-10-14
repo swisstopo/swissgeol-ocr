@@ -1,5 +1,13 @@
 const findNextVersion = (tags, branch) => {
   const version = findMostRecentVersion(tags);
+  if (version == null) {
+    return {
+      major: 1,
+      minor: 0,
+      patch: 0,
+      preRelease: 0,
+    };
+  }
   if (branch.startsWith("feature/")) {
     // It's a minor feature.
 
@@ -30,7 +38,7 @@ const findNextVersion = (tags, branch) => {
 const findMostRecentVersion = (tags) => {
   const versions = findAllVersions(tags);
   if (versions.length === 0) {
-    throw new Error("unable to find a valid version on current edge tag");
+    return null;
   }
   return versions[0];
 };

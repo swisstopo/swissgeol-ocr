@@ -3,7 +3,7 @@ POST http://localhost:8000
 Content-Type: application/json
 
 {
-  "file": "467.pdf"
+  "file": "4178.pdf"
 }
 
 ### Collect File Result
@@ -11,5 +11,5 @@ POST http://localhost:8000/collect
 Content-Type: application/json
 
 {
-  "token": "af6c8a65-685c-4bc2-9823-044c99aa925c"
+  "file": "4178.pdf"
 }

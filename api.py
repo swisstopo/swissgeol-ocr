@@ -1,6 +1,5 @@
 import os
 import shutil
-import subprocess
 import uuid
 from typing import Annotated
 
@@ -29,7 +28,7 @@ def start(
     if not payload.file.endswith('.pdf'):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "Invalid request", "message": "input must be a PDF file"}
+            detail={"message": "input must be a PDF file"}
         )
 
     task.start(payload.file, background_tasks, lambda: process(payload, settings))
@@ -46,13 +45,20 @@ def collect(
 ):
     result = task.collect_result(payload.file)
     if result is None and not task.has_task(payload.file):
-        return JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={"message": "OCR is not running for this file"},
+            detail={"message": "OCR is not running for this file"}
         )
+
+    has_finished = result is not None
+    if has_finished and result.ok:
+        return JSONResponse(status_code=status.HTTP_200_OK, content={
+            "has_finished": has_finished,
+            "data": result.value,
+        })
     return JSONResponse(status_code=status.HTTP_200_OK, content={
-        "has_finished": result is not None,
-        "data": result,
+        "has_finished": has_finished,
+        "error": "Internal Server Error",
     })
 
 

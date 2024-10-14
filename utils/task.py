@@ -1,3 +1,4 @@
+import logging
 import threading
 import typing
 import uuid
@@ -13,6 +14,12 @@ Result = TypeVar("Result")
 class Task:
     file: str
     result: Result | None = None
+
+
+@dataclass
+class Output:
+    ok: bool
+    value: Result | RuntimeError
 
 
 active_tasks: Dict[str, Task] = {}
@@ -33,7 +40,7 @@ def has_task(file: str) -> bool:
         return file in active_tasks
 
 
-def collect_result(file: str) -> Result | None:
+def collect_result(file: str) -> Output | None:
     with active_tasks_lock:
         task = active_tasks.get(file)
         if task is None or task.result is None:
@@ -43,6 +50,12 @@ def collect_result(file: str) -> Result | None:
 
 
 def run(file: str, target: typing.Callable[[], Result]):
-    result = target()
+    try:
+        value = target()
+        result = Output(ok=True, value=value)
+    except RuntimeError as e:
+        logging.exception(f"Processing of '{file}' failed")
+        result = Output(ok=False, value=e)
+
     with active_tasks_lock:
         active_tasks.get(file).result = result

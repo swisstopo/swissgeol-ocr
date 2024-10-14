@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "develop"
+      - "feature/asset-35-*"
 
   workflow_dispatch:
     inputs:
@@ -39,7 +40,7 @@ jobs:
         if: ${{ github.event.inputs.version == '' }}
         run: |
           git fetch --tags
-          EDGE_COMMIT=$(git rev-list -n 1 edge)
+          EDGE_COMMIT=$(git rev-list -n 1 edge 2>/dev/null || git rev-parse HEAD)
           EDGE_TAGS=$(printf "%s," $(git tag --contains $EDGE_COMMIT))
           EDGE_TAGS=${EDGE_TAGS%,}
           echo "edge_tags=$EDGE_TAGS" >> "$GITHUB_OUTPUT"

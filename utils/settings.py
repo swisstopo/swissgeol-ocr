@@ -17,6 +17,7 @@ class ApiSettings(SharedSettings):
     aws_profile: str | None = None
     aws_access_key: str | None = None
     aws_secret_access_key: str | None = None
+    aws_region: str | None = None
 
     s3_input_bucket: str
     s3_input_folder: str

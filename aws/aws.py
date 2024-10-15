@@ -35,7 +35,11 @@ def connect(settings: ApiSettings) -> Client:
     if has_profile:
         session = open_session_by_profile(settings.aws_profile)
     elif has_access_key:
-        session = open_session_by_access_keys(settings.aws_access_key, settings.aws_secret_access_key)
+        session = open_session_by_access_keys(
+            settings.aws_access_key,
+            settings.aws_secret_access_key,
+            settings.aws_region,
+        )
     else:
         session = open_session_by_service_role()
 
@@ -53,8 +57,12 @@ def open_session_by_profile(profile: str) -> boto3.Session:
     return boto3.Session(profile_name=profile)
 
 
-def open_session_by_access_keys(access_key: str, secret_access_key: str) -> boto3.Session:
-    return boto3.Session(aws_access_key_id=access_key, aws_secret_access_key=secret_access_key)
+def open_session_by_access_keys(access_key: str, secret_access_key: str, region: str) -> boto3.Session:
+    return boto3.Session(
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_access_key,
+        region_name=region,
+    )
 
 
 def open_session_by_service_role() -> boto3.Session:

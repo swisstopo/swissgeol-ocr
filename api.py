@@ -51,13 +51,20 @@ def collect(
         )
 
     has_finished = result is not None
-    if has_finished and result.ok:
+    if not has_finished:
         return JSONResponse(status_code=status.HTTP_200_OK, content={
-            "has_finished": has_finished,
+            "has_finished": False,
+            "data": None,
+        })
+
+    if result.ok:
+        return JSONResponse(status_code=status.HTTP_200_OK, content={
+            "has_finished": True,
             "data": result.value,
         })
+    
     return JSONResponse(status_code=status.HTTP_200_OK, content={
-        "has_finished": has_finished,
+        "has_finished": True,
         "error": "Internal Server Error",
     })
 

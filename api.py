@@ -62,7 +62,7 @@ def collect(
             "has_finished": True,
             "data": result.value,
         })
-    
+
     return JSONResponse(status_code=status.HTTP_200_OK, content={
         "has_finished": True,
         "error": "Internal Server Error",
@@ -81,6 +81,7 @@ def process(
     output_path = os.path.join(tmp_dir, "output.pdf")
 
     aws_client = aws.connect(settings)
+    print(f"Downloading file {settings.s3_input_folder}{payload.file} @ {settings.s3_input_bucket} to {input_path}", flush = True)
     aws.load_file(
         aws_client.bucket(settings.s3_input_bucket),
         f'{settings.s3_input_folder}{payload.file}',

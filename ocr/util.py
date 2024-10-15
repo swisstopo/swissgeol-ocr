@@ -1,12 +1,8 @@
-import gc
-import os
-from time import sleep
-
 import fitz
+from mypy_boto3_textract import TextractClient as Textractor
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas
 from reportlab.pdfgen.textobject import PDFTextObject
-from mypy_boto3_textract import TextractClient as Textractor
 
 from ocr.applyocr import OCR
 from ocr.readingorder import TextLine, TextWord

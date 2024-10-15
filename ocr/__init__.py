@@ -3,6 +3,7 @@ import subprocess
 
 import fitz
 from mypy_boto3_textract import TextractClient as Textractor
+from pymupdf.mupdf import PDF_ENCRYPT_KEEP
 
 from ocr.crop import crop_images
 from ocr.resize import resize_page
@@ -58,12 +59,19 @@ def process_pdf(
         confidence_threshold: float,
         use_aggressive_strategy: bool,
 ):
+    tmp_out_path = os.path.join(tmp_dir, f"output.pdf")
+
     in_doc = fitz.open(in_path)
     out_doc = fitz.open(in_path)
+
+    os.makedirs(tmp_dir, exist_ok=True)
 
     in_page_count = in_doc.page_count
     print(f"{in_page_count} pages")
 
+    out_doc.save(tmp_out_path, garbage=3, deflate=True)
+    out_doc.close()
+    out_doc = fitz.open(tmp_out_path)
     for page_index, new_page in enumerate(iter(in_doc)):
         page_number = page_index + 1
         print(f"Page {page_number}")
@@ -82,7 +90,13 @@ def process_pdf(
         text_layer_path = os.path.join(tmp_dir, f"page{page_number}.pdf")
         lines_to_draw = process_page(out_doc, new_page, textractor, tmp_path_prefix, confidence_threshold, ignore_rects)
         draw_ocr_text_page(new_page, text_layer_path, lines_to_draw)
+        out_doc.save(tmp_out_path, incremental=True, encryption=PDF_ENCRYPT_KEEP)
+
+    out_doc.close()
+    out_doc = fitz.open(tmp_out_path)
     out_doc.save(out_path, garbage=3, deflate=True)
+    in_doc.close()
+    out_doc.close()
 
     # Verify that we can read the written document, and that it still has the same number of pages. Some corrupt input
     # documents might lead to an empty or to a corrupt output document, sometimes even without throwing an error. (See
@@ -93,3 +107,4 @@ def process_pdf(
         raise ValueError(
             "Output document contains {} pages instead of {}".format(out_page_count, in_page_count)
         )
+    doc.close()

@@ -2,8 +2,6 @@ import logging
 import os
 import shutil
 import uuid
-from random import randint
-from time import sleep
 from typing import Annotated
 
 from fastapi import FastAPI, Depends, status, HTTPException, BackgroundTasks, Response
@@ -41,7 +39,18 @@ def start(
             detail={"message": "input must be a PDF file"}
         )
 
-    task.start(payload.file, background_tasks, lambda: process(payload, settings))
+    aws_client = aws.connect(settings)
+    has_file = aws_client.exists_file(
+        settings.s3_input_bucket,
+        f'{settings.s3_input_folder}{payload.file}',
+    )
+    if not has_file:
+        raise HTTPException(
+            status_code=status.HTTP_422_BAD_REQUEST,
+            detail={"message": "file does not exist"}
+        )
+
+    task.start(payload.file, background_tasks, lambda: process(payload, aws_client, settings))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -84,6 +93,7 @@ def collect(
 
 def process(
         payload: StartPayload,
+        aws_client: aws.Client,
         settings: Annotated[ApiSettings, Depends(api_settings)],
 ):
     if settings.skip_processing:
@@ -98,7 +108,6 @@ def process(
     input_path = os.path.join(tmp_dir, "input.pdf")
     output_path = os.path.join(tmp_dir, "output.pdf")
 
-    aws_client = aws.connect(settings)
     aws.load_file(
         aws_client.bucket(settings.s3_input_bucket),
         f'{settings.s3_input_folder}{payload.file}',

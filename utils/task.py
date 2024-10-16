@@ -51,8 +51,10 @@ def collect_result(file: str) -> Output | None:
 
 def run(file: str, target: typing.Callable[[], Result]):
     try:
+        logging.info(f"Starting task for file '{file}'.")
         value = target()
         result = Output(ok=True, value=value)
+        logging.info(f"Task for file '{file}' has been completed.")
     except RuntimeError as e:
         logging.exception(f"Processing of '{file}' failed")
         result = Output(ok=False, value=e)

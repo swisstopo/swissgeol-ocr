@@ -17,6 +17,9 @@ from utils.settings import ApiSettings, api_settings
 
 app = FastAPI()
 
+logging.basicConfig()
+logging.getLogger().setLevel(logging.INFO)
+
 
 class StartPayload(BaseModel):
     file: str = Field(min_length=1)
@@ -24,6 +27,7 @@ class StartPayload(BaseModel):
 
 if api_settings().skip_processing:
     logging.warning("SKIP_PROCESSING is active, files will always be marked as completed without being proceed")
+
 
 @app.post("/")
 def start(
@@ -58,17 +62,20 @@ def collect(
 
     has_finished = result is not None
     if not has_finished:
+        logging.info(f"Processing of '{payload.file}' has not yet finished.")
         return JSONResponse(status_code=status.HTTP_200_OK, content={
             "has_finished": False,
             "data": None,
         })
 
     if result.ok:
+        logging.info(f"Processing of '{payload.file}' has been successful.")
         return JSONResponse(status_code=status.HTTP_200_OK, content={
             "has_finished": True,
             "data": result.value,
         })
 
+    logging.info(f"Processing of '{payload.file}' has failed.")
     return JSONResponse(status_code=status.HTTP_200_OK, content={
         "has_finished": True,
         "error": "Internal Server Error",
@@ -81,7 +88,7 @@ def process(
 ):
     if settings.skip_processing:
         # Sleep between 30 seconds to 2 minutes to simulate processing time.
-        sleep(randint(30, 120))
+        # sleep(randint(30, 120))
         return
 
     task_id = f"{uuid.uuid4()}"
@@ -92,7 +99,6 @@ def process(
     output_path = os.path.join(tmp_dir, "output.pdf")
 
     aws_client = aws.connect(settings)
-    print(f"Downloading file {settings.s3_input_folder}{payload.file} @ {settings.s3_input_bucket} to {input_path}", flush = True)
     aws.load_file(
         aws_client.bucket(settings.s3_input_bucket),
         f'{settings.s3_input_folder}{payload.file}',

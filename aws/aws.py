@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import boto3
+from botocore.exceptions import ClientError
 from mypy_boto3_s3 import S3ServiceResource
 from mypy_boto3_s3.service_resource import Bucket
 from mypy_boto3_textract import TextractClient as Textractor
@@ -17,6 +18,16 @@ class Client:
 
     def bucket(self, name: str) -> Bucket:
         return self.s3.Bucket(name)
+
+    def exists_file(self, bucket_name: str, key: str) -> bool:
+        try:
+            self.s3.Object(bucket_name, key).load()
+            return True
+        except ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                return False
+            else:
+                raise e
 
 
 def connect(settings: ApiSettings) -> Client:

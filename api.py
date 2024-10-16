@@ -1,6 +1,9 @@
+import logging
 import os
 import shutil
 import uuid
+from random import randint
+from time import sleep
 from typing import Annotated
 
 from fastapi import FastAPI, Depends, status, HTTPException, BackgroundTasks, Response
@@ -18,6 +21,9 @@ app = FastAPI()
 class StartPayload(BaseModel):
     file: str = Field(min_length=1)
 
+
+if api_settings().skip_processing:
+    logging.warning("SKIP_PROCESSING is active, files will always be marked as completed without being proceed")
 
 @app.post("/")
 def start(
@@ -73,6 +79,11 @@ def process(
         payload: StartPayload,
         settings: Annotated[ApiSettings, Depends(api_settings)],
 ):
+    if settings.skip_processing:
+        # Sleep between 30 seconds to 2 minutes to simulate processing time.
+        sleep(randint(30, 120))
+        return
+
     task_id = f"{uuid.uuid4()}"
     tmp_dir = os.path.join(settings.tmp_path, task_id)
     os.makedirs(tmp_dir, exist_ok=True)

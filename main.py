@@ -1,152 +1,90 @@
+import os
+import shutil
+import sys
+from pathlib import Path
+
 import boto3
 from textractor import Textractor
 
-from util.source import S3AssetSource, FileAssetSource
-from util.target import S3AssetTarget, FileAssetTarget, AssetTarget
-from util.util import process_page, clean_old_ocr, new_ocr_needed, draw_ocr_text_page, clean_old_ocr_aggressive
-from util.crop import crop_images
-from util.resize import resize_page
-from pathlib import Path
-from dotenv import dotenv_values
-import os
-import fitz
-import subprocess
-import sys
+import ocr
+from ocr.source import S3AssetSource, FileAssetSource
+from ocr.target import S3AssetTarget, FileAssetTarget, AssetTarget
+from utils.settings import script_settings, ScriptSettings
 
 
-def load_target(config):
-    if config["OCR_OUTPUT_TYPE"] == "S3":
-        s3_session = boto3.Session(profile_name=config["OCR_OUTPUT_AWS_PROFILE"])
+def load_target(settings: ScriptSettings):
+    if settings.output_type == 's3':
+        s3_session = boto3.Session(profile_name=settings.output_aws_profile)
         s3 = s3_session.resource('s3')
         return S3AssetTarget(
-            s3_bucket=s3.Bucket(config["OCR_OUTPUT_S3_BUCKET"]),
-            s3_prefix=config["OCR_OUTPUT_S3_PREFIX"],
+            s3_bucket=s3.Bucket(settings.output_s3_bucket),
+            s3_prefix=settings.output_s3_prefix,
             output_path_fn=lambda filename: Path(sys.path[0], "tmp", "new_" + filename),
-            do_cleanup=(config["OCR_OUTPUT_CLEANUP_TMP_FILES"] == "TRUE")
         )
-    elif config["OCR_OUTPUT_TYPE"] == "path":
+    elif settings.output_type == 'path':
         return FileAssetTarget(
-            out_path=Path(config["OCR_OUTPUT_PATH"])
+            out_path=Path(settings.output_path)
         )
     else:
-        print("No OCR_OUTPUT_TYPE specified.")
+        print("No output type specified.")
         sys.exit(1)
 
 
-def load_source(config, target: AssetTarget):
-    if config["OCR_INPUT_IGNORE_EXISTING"] == "TRUE":
+def load_source(settings: ScriptSettings, target: AssetTarget):
+    if settings.input_type == 's3':
         ignore_filenames = target.existing_filenames()
         print("Found {} existing objects in output path.".format(len(ignore_filenames)))
     else:
         ignore_filenames = []
 
-    if config["OCR_INPUT_TYPE"] == "S3":
-        s3_session = boto3.Session(profile_name=config["OCR_INPUT_AWS_PROFILE"])
+    if settings.input_type == "s3":
+        s3_session = boto3.Session(profile_name=settings.input_aws_profile)
         s3 = s3_session.resource('s3')
 
         return S3AssetSource(
-            s3_bucket=s3.Bucket(config["OCR_INPUT_S3_BUCKET"]),
-            s3_prefix=config["OCR_INPUT_S3_PREFIX"],
+            s3_bucket=s3.Bucket(settings.input_s3_bucket),
+            s3_prefix=settings.input_s3_prefix,
             allow_override=False,
             input_path_fn=lambda filename: Path(sys.path[0], "tmp", filename),
-            do_cleanup=(config["OCR_INPUT_CLEANUP_TMP_FILES"] == "TRUE"),
             ignore_filenames=ignore_filenames
         )
-    elif config["OCR_INPUT_TYPE"] == "path":
+    elif settings.input_type == "path":
         return FileAssetSource(
-            in_path=Path(config["OCR_INPUT_PATH"]),
+            in_path=Path(settings.input_path),
             ignore_filenames=ignore_filenames
         )
     else:
-        print("No OCR_INPUT_TYPE specified.")
+        print("No input type specified.")
         sys.exit(1)
 
 
-def process(filename, in_path, out_path, extractor, confidence_threshold, aggressive_strategy):
-
-    in_doc = fitz.open(in_path)
-    out_doc = fitz.open(in_path)
-
-    in_page_count = in_doc.page_count
-    print(f"{in_page_count} pages")
-    for page_index, new_page in enumerate(out_doc):
-        page_number = page_index + 1
-        print(f"Page {page_number}")
-
-        new_page = resize_page(in_doc, out_doc, page_index)
-        crop_images(new_page, out_doc)
-        if aggressive_strategy:
-            ignore_rects = clean_old_ocr_aggressive(new_page)
-        else:
-            if new_ocr_needed(new_page):
-                clean_old_ocr(new_page)
-                ignore_rects = []
-            else:
-                continue
-        tmp_path_prefix = os.path.join(sys.path[0], "tmp", "{}_page{}".format(filename, page_number))
-        text_layer_path = os.path.join(sys.path[0], "tmp", "{}_page{}.pdf".format(filename, page_number))
-        lines_to_draw = process_page(out_doc, new_page, extractor, tmp_path_prefix, confidence_threshold, ignore_rects)
-        draw_ocr_text_page(new_page, text_layer_path, lines_to_draw)
-    out_doc.save(out_path, garbage=3, deflate=True)
-
-    # Verify that we can read the written document, and that it still has the same number of pages. Some corrupt input
-    # documents might lead to an empty or to a corrupt output document, sometimes even without throwing an error. (See
-    # LGD-283.) This check should detect such cases.
-    doc = fitz.open(out_path)
-    out_page_count = doc.page_count
-    if in_page_count != out_page_count:
-        raise ValueError(
-            "Output document contains {} pages instead of {}".format(out_page_count, in_page_count)
-        )
-
-
 def main():
-    if 'OCR_PROFILE' in os.environ:
-        print(f"Loading env variables from .env and .env.{os.environ['OCR_PROFILE']}.")
-        config = {
-            **dotenv_values(".env"),
-            **dotenv_values(f".env.{os.environ['OCR_PROFILE']}"),
-        }
-    else:
-        print(f"Loading env variables from .env.")
-        config = dotenv_values(".env")
+    settings = script_settings()
+    extractor = Textractor(profile_name=settings.textract_aws_profile)
 
-    extractor = Textractor(profile_name=config["AWS_TEXTRACT_PROFILE"])
-    confidence_threshold = float(config["CONFIDENCE_THRESHOLD"])
-    aggressive_strategy = config["OCR_STRATEGY_AGGRESSIVE"] == "TRUE"
-    print(f"Using confidence threshold {confidence_threshold} and aggressive strategy {aggressive_strategy}.")
-
-    target = load_target(config)
-    source = load_source(config, target)
+    target = load_target(settings)
+    source = load_source(settings, target)
 
     for asset_item in source.iterator():
         asset_item.load()
         out_path = target.local_path(asset_item)
+        tmp_dir = os.path.join(settings.tmp_path, asset_item.filename)
 
         print()
         print(asset_item.filename)
-        try:
-            process(asset_item.filename, asset_item.local_path, out_path, extractor, confidence_threshold, aggressive_strategy)
-        except ValueError as e:
-            gs_preprocess_path = os.path.join(sys.path[0], "tmp", "gs_pre_" + asset_item.filename)
-            print("Encountered ValueError: {}. Trying Ghostscript preprocessing.".format(e))
-            subprocess.call([
-                "ghostscript",
-                "-sDEVICE=pdfwrite",
-                "-dCompatibilityLevel=1.4",
-                "-dPDFSETTINGS=/default",
-                "-dNOPAUSE",
-                "-dQUIET",
-                "-dBATCH",
-                "-sOutputFile={}".format(gs_preprocess_path),
-                asset_item.local_path
-            ])
-            process(asset_item.filename, gs_preprocess_path, out_path, extractor, confidence_threshold, aggressive_strategy)
-            os.remove(gs_preprocess_path)
+        ocr.process(
+            str(asset_item.local_path),
+            str(out_path),
+            tmp_dir,
+            extractor.textract_client,
+            settings.confidence_threshold,
+            settings.use_aggressive_strategy,
+        )
 
-        asset_item.cleanup()
         target.save(asset_item)
-        target.cleanup(asset_item)
+
+        if settings.cleanup_tmp_files:
+            shutil.rmtree(tmp_dir)
 
 
 if __name__ == '__main__':

@@ -4,14 +4,15 @@ import fitz
 import os
 import backoff
 from botocore.exceptions import ClientError
-from textractor import Textractor
+from mypy_boto3_textract import TextractClient as Textractor
 from trp.t_pipeline import add_page_orientation
 import trp.trp2 as t2
 import trp as t1
 import textractcaller.t_call as t_call
 import statistics
 
-from util.readingorder import TextLine
+
+from ocr.readingorder import TextLine
 
 
 MAX_DIMENSION_POINTS = 2000
@@ -70,7 +71,6 @@ def textract(doc: fitz.Document, extractor: Textractor, tmp_file_path: str, clip
     page.set_cropbox(old_cropbox.intersect(page.mediabox))
 
     document = call_textract(extractor, tmp_file_path)
-    os.remove(tmp_file_path)
 
     if document is None:
         return []
@@ -87,16 +87,17 @@ def backoff_hdlr(details):
 @backoff.on_exception(backoff.expo,
                       ClientError,
                       on_backoff=backoff_hdlr,
-                      base=2)
+                      base=2,
+                      max_tries=3)
 def call_textract(extractor: Textractor, tmp_file_path: str) -> t1.Document | None:
     try:
         j = t_call.call_textract(
             input_document=tmp_file_path,
-            boto3_textract_client=extractor.textract_client,
+            boto3_textract_client=extractor,
             call_mode=t_call.Textract_Call_Mode.FORCE_SYNC
         )
         t_document: t2.TDocument = t2.TDocumentSchema().load(j)
-    except extractor.textract_client.exceptions.InvalidParameterException:
+    except extractor.exceptions.InvalidParameterException:
         print("Encountered InvalidParameterException from Textract. Page might require more than 10MB memory. Skipping page.")
         return None
 

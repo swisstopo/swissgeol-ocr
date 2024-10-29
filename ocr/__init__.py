@@ -59,7 +59,7 @@ def process_pdf(
         confidence_threshold: float,
         use_aggressive_strategy: bool,
 ):
-    tmp_out_path = os.path.join(tmp_dir, f"output.pdf")
+    tmp_out_path = os.path.join(tmp_dir, f"output.incremental.pdf")
 
     in_doc = fitz.open(in_path)
     out_doc = fitz.open(in_path)
@@ -93,9 +93,9 @@ def process_pdf(
         out_doc.save(tmp_out_path, incremental=True, encryption=PDF_ENCRYPT_KEEP)
 
     out_doc.close()
+    in_doc.close()
     out_doc = fitz.open(tmp_out_path)
     out_doc.save(out_path, garbage=3, deflate=True)
-    in_doc.close()
     out_doc.close()
 
     # Verify that we can read the written document, and that it still has the same number of pages. Some corrupt input

@@ -61,4 +61,4 @@ def load_file(bucket: Bucket, key: str, local_path: str):
 
 
 def store_file(bucket: Bucket, key: str, local_path: str):
-    bucket.upload_file(local_path, key)
+    bucket.upload_file(local_path, key, ExtraArgs={'ContentType': 'application/pdf'})

@@ -76,7 +76,7 @@ jobs:
             type=raw,value=${{ env.IS_EDGE == 'true' && 'edge' || '' }}
             type=raw,value=${{ env.IS_RC == 'true' && 'release-candidate' || '' }}
           VERSION: ${{ needs.determine_version.outputs.version }}
-          DOCKERFILE: ./apps/server-asset-sg/docker/Dockerfile
+          DOCKERFILE: Dockerfile
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   tag_commit:

@@ -68,10 +68,9 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
     out_doc = fitz.open(in_path)
 
     in_page_count = in_doc.page_count
-    print(f"{in_page_count} pages")
     for page_index, new_page in enumerate(out_doc):
         page_number = page_index + 1
-        print(f"Page {page_number}")
+        print(f"Page {page_number}/{in_page_count}")
 
         new_page = resize_page(in_doc, out_doc, page_index)
         crop_images(new_page, out_doc)

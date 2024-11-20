@@ -15,7 +15,7 @@ Additional features:
 
 ### Roadmap
 
-- Allow deploying this OCR script as a microservice (adding an API, logging and monitoring, configurability. etc.), that can be integrated into the applications [assets.swissgeol.ch](https://assets.swissgeol.ch/) ([Github Repo](https://github.com/swisstopo/swissgeol-assets-suite)) and [boreholes.swissgeol.ch](https://boreholes.swissgeol.ch/) ([Github Repo](https://github.com/swisstopo/swissgeol-boreholes-suite)).
+- Allow deploying this OCR script as a microservice (adding an API, logging and monitoring, configurability. etc.), that can be integrated into the applications [assets.swissgeol.ch](https://assets.swissgeol.ch/) ([GitHub Repo](https://github.com/swisstopo/swissgeol-assets-suite)) and [boreholes.swissgeol.ch](https://boreholes.swissgeol.ch/) ([GitHub Repo](https://github.com/swisstopo/swissgeol-boreholes-suite)).
 
 ## Installation
 
@@ -80,4 +80,12 @@ OCR_OUTPUT_PATH=/home/stijn/bohrprofile-zurich/ocr/
 
 CONFIDENCE_THRESHOLD=0.45
 OCR_STRATEGY_AGGRESSIVE=TRUE
+```
+
+## Append output to file
+
+To run the script while additionally appending all output to a log file, you can use the following command:
+
+```
+python -u main.py | tee output.log 
 ```

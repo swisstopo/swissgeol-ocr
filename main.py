@@ -70,7 +70,7 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
     in_page_count = in_doc.page_count
     for page_index, new_page in enumerate(out_doc):
         page_number = page_index + 1
-        print(f"Page {page_number}/{in_page_count}")
+        print(f"{filename}, page {page_number}/{in_page_count}")
 
         new_page = resize_page(in_doc, out_doc, page_index)
         crop_images(new_page, out_doc)
@@ -86,7 +86,7 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
         text_layer_path = os.path.join(sys.path[0], "tmp", "{}_page{}.pdf".format(filename, page_number))
         lines_to_draw = process_page(out_doc, new_page, extractor, tmp_path_prefix, confidence_threshold, ignore_rects)
         draw_ocr_text_page(new_page, text_layer_path, lines_to_draw)
-    out_doc.save(out_path, garbage=3, deflate=True)
+    out_doc.save(out_path, deflate=True, garbage=3, use_objstms=1)
 
     # Verify that we can read the written document, and that it still has the same number of pages. Some corrupt input
     # documents might lead to an empty or to a corrupt output document, sometimes even without throwing an error. (See

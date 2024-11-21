@@ -67,7 +67,7 @@ def textract(doc: fitz.Document, extractor: Textractor, tmp_file_path: str, clip
     # page.set_cropbox(). Possibly related to: https://github.com/pymupdf/PyMuPDF/issues/1615
     page.set_cropbox(clip_transformed.intersect(page.mediabox))
     page.set_rotation(page.rotation + rotate)
-    doc.save(tmp_file_path, deflate=True)
+    doc.save(tmp_file_path, deflate=True, garbage=3, use_objstms=1)
 
     page.set_rotation(old_rotation)
     page.set_cropbox(old_cropbox.intersect(page.mediabox))
@@ -92,6 +92,9 @@ def backoff_hdlr(details):
                       on_backoff=backoff_hdlr,
                       base=2)
 def call_textract(extractor: Textractor, tmp_file_path: str) -> t1.Document | None:
+    if os.path.getsize(tmp_file_path) >= 10 * 1024 * 1024:  # 10 MB
+        print("Page larger than 10MB. Skipping page.")
+        return None
     try:
         j = t_call.call_textract(
             input_document=tmp_file_path,

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from ssl import SSLEOFError
+
+import botocore.exceptions
 import fitz
 import os
 import backoff
@@ -98,6 +101,9 @@ def call_textract(extractor: Textractor, tmp_file_path: str) -> t1.Document | No
         t_document: t2.TDocument = t2.TDocumentSchema().load(j)
     except extractor.textract_client.exceptions.InvalidParameterException:
         print("Encountered InvalidParameterException from Textract. Page might require more than 10MB memory. Skipping page.")
+        return None
+    except botocore.exceptions.SSLError:
+        print("Encountered SSLError from Textract. Page might require more than 10MB memory. Skipping page.")
         return None
 
     try:

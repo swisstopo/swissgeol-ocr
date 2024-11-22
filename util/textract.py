@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from ssl import SSLEOFError
-
 import botocore.exceptions
 import fitz
 import os
@@ -108,6 +106,10 @@ def call_textract(extractor: Textractor, tmp_file_path: str) -> t1.Document | No
     except botocore.exceptions.SSLError:
         print("Encountered SSLError from Textract. Page might require more than 10MB memory. Skipping page.")
         return None
+    except extractor.textract_client.exceptions.UnsupportedDocumentException:  # 1430.pdf page 18
+        print("Encountered UnsupportedDocumentException from Textract. Page might have excessive width or height. Skipping page.")
+        return None
+
 
     try:
         t_document = add_page_orientation(t_document)

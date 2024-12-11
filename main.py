@@ -1,4 +1,5 @@
 import boto3
+from pymupdf import mupdf
 from textractor import Textractor
 
 from util.source import S3AssetSource, FileAssetSource
@@ -73,7 +74,7 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
         print(f"{filename}, page {page_number}/{in_page_count}")
 
         new_page = resize_page(in_doc, out_doc, page_index)
-        crop_images(new_page, out_doc)
+        # crop_images(new_page, out_doc)
         if aggressive_strategy:
             ignore_rects = clean_old_ocr_aggressive(new_page)
         else:
@@ -126,9 +127,9 @@ def main():
         print(asset_item.filename)
         try:
             process(asset_item.filename, asset_item.local_path, out_path, extractor, confidence_threshold, aggressive_strategy)
-        except ValueError as e:
+        except (ValueError, mupdf.FzErrorArgument) as e:
             gs_preprocess_path = os.path.join(sys.path[0], "tmp", "gs_pre_" + asset_item.filename)
-            print("Encountered ValueError: {}. Trying Ghostscript preprocessing.".format(e))
+            print("Encountered {}: {}. Trying Ghostscript preprocessing.".format(e.__class__.__name__, e))
             subprocess.call([
                 "ghostscript",
                 "-sDEVICE=pdfwrite",

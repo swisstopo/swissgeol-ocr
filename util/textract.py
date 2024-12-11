@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import botocore.exceptions
 import fitz
 import os
@@ -51,34 +53,28 @@ def text_lines_from_document(
     return [TextLine.from_textract(line, orientation - rotate, page_height, transform) for line in page.lines]
 
 
-def textract(doc: fitz.Document, extractor: Textractor, tmp_file_path: str, clip_rect: fitz.Rect, rotate: float) -> list[TextLine]:
-    page = doc[0]
-    old_rotation = page.rotation
-    old_cropbox = page.cropbox
+def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_rect: fitz.Rect, rotate: float) -> list[TextLine]:
+    with fitz.Document(doc_path) as doc:
+        page = doc[0]
+        clip_transformed = clip_rect * page.rect.torect(page.cropbox)
 
-    clip_transformed = clip_rect * page.rect.torect(page.cropbox)
+        # Even thought the documentation says that the cropbox is always contained in the mediabox, this is not always the
+        # case, e.g. 267123080-bp.pdf. The discrepancies are usually very small (floating point accuracy errors?). Even so,
+        # a trivial call such as page.set_cropbox(page.cropbox) will fail with an "CropBox not in MediaBox" error, if this
+        # is the case. To avoid such errors, we take an explicit intersection with the mediabox whenever we call
+        # page.set_cropbox(). Possibly related to: https://github.com/pymupdf/PyMuPDF/issues/1615
+        page.set_cropbox(clip_transformed.intersect(page.mediabox))
+        page.set_rotation(page.rotation + rotate)
+        doc.save(tmp_file_path, deflate=True, garbage=3, use_objstms=1)
+        document = call_textract(extractor, tmp_file_path)
+        os.remove(tmp_file_path)
 
-    # Even thought the documentation says that the cropbox is always contained in the mediabox, this is not always the
-    # case, e.g. 267123080-bp.pdf. The discrepancies are usually very small (floating point accuracy errors?). Even so,
-    # a trivial call such as page.set_cropbox(page.cropbox) will fail with an "CropBox not in MediaBox" error, if this
-    # is the case. To avoid such errors, we take an explicit intersection with the mediabox whenever we call
-    # page.set_cropbox(). Possibly related to: https://github.com/pymupdf/PyMuPDF/issues/1615
-    page.set_cropbox(clip_transformed.intersect(page.mediabox))
-    page.set_rotation(page.rotation + rotate)
-    doc.save(tmp_file_path, deflate=True, garbage=3, use_objstms=1)
+        if document is None:
+            return []
 
-    page.set_rotation(old_rotation)
-    page.set_cropbox(old_cropbox.intersect(page.mediabox))
-
-    document = call_textract(extractor, tmp_file_path)
-    os.remove(tmp_file_path)
-
-    if document is None:
-        return []
-
-    # Matrix to transform Textract coordinates back to PyMuPDF coordinates
-    transform = textract_coordinate_transform(clip_rect=clip_rect, rotate=rotate)
-    return text_lines_from_document(document, transform, rotate, doc[0].rect.height)
+        # Matrix to transform Textract coordinates back to PyMuPDF coordinates
+        transform = textract_coordinate_transform(clip_rect=clip_rect, rotate=rotate)
+        return text_lines_from_document(document, transform, rotate, doc[0].rect.height)
 
 
 def backoff_hdlr(details):
@@ -89,13 +85,13 @@ def backoff_hdlr(details):
                       ClientError,
                       on_backoff=backoff_hdlr,
                       base=2)
-def call_textract(extractor: Textractor, tmp_file_path: str) -> t1.Document | None:
+def call_textract(extractor: Textractor, tmp_file_path: Path) -> t1.Document | None:
     if os.path.getsize(tmp_file_path) >= 10 * 1024 * 1024:  # 10 MB
         print("Page larger than 10MB. Skipping page.")
         return None
     try:
         j = t_call.call_textract(
-            input_document=tmp_file_path,
+            input_document=str(tmp_file_path),
             boto3_textract_client=extractor.textract_client,
             call_mode=t_call.Textract_Call_Mode.FORCE_SYNC
         )

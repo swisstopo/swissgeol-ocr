@@ -74,7 +74,7 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
         print(f"{filename}, page {page_number}/{in_page_count}")
 
         new_page = resize_page(in_doc, out_doc, page_index)
-        # crop_images(new_page, out_doc)
+        crop_images(new_page, out_doc)
         if aggressive_strategy:
             ignore_rects = clean_old_ocr_aggressive(new_page)
         else:

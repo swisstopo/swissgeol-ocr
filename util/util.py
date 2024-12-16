@@ -166,10 +166,14 @@ def draw_ocr_text_page(
     c.showPage()
     c.save()
 
-    text_layer_doc = fitz.open(text_layer_path)
     original_rotation = page.rotation
     page.set_rotation(0)
-    page.show_pdf_page(page.rect, text_layer_doc, rotate=original_rotation)
+    with open(text_layer_path, 'rb') as text_layer_file:
+        data = text_layer_file.read()
+    # For some reason, a PyMuPDF document is not correctly closed after calling show_pdf_page with it. To avoid a
+    # "too many open files" error, we first load the text layer into memory, and only then create a PyMuPDF doc from it.
+    with fitz.Document(stream=data) as text_layer_doc:
+        page.show_pdf_page(page.rect, text_layer_doc, rotate=original_rotation)
     page.set_rotation(original_rotation)
     os.remove(text_layer_path)
     return

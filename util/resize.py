@@ -12,8 +12,8 @@ def resize_page(in_doc: fitz.Document, out_doc: fitz.Document, page_index: int) 
         else:
             print("  Resetting page rotation from {} to 0.".format(src_page.rotation))
             factor = 1
-        out_doc.delete_page(page_index)
         src_page.set_rotation(0)
         new_page = out_doc.new_page(page_index, page_rect.width * factor, page_rect.height * factor)
         new_page.show_pdf_page(new_page.rect, in_doc, page_index, rotate=-src_page_rotation)
+        out_doc.delete_page(page_index + 1)
     return out_doc[page_index]

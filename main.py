@@ -127,7 +127,7 @@ def main():
         print(asset_item.filename)
         try:
             process(asset_item.filename, asset_item.local_path, out_path, extractor, confidence_threshold, aggressive_strategy)
-        except (ValueError, mupdf.FzErrorArgument) as e:
+        except (ValueError, mupdf.FzErrorArgument, mupdf.FzErrorFormat) as e:
             gs_preprocess_path = os.path.join(sys.path[0], "tmp", "gs_pre_" + asset_item.filename)
             print("Encountered {}: {}. Trying Ghostscript preprocessing.".format(e.__class__.__name__, e))
             subprocess.call([

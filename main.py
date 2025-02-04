@@ -67,10 +67,9 @@ def process(filename, in_path, in_path_processed, out_path, extractor, confidenc
     is_changed = False
     in_doc = fitz.open(in_path)
     in_doc_resize = fitz.open(in_path)
-    in_doc_processed = fitz.open(in_path_processed)
     out_doc = fitz.open(in_path_processed)
 
-    assert(in_doc.page_count == in_doc_processed.page_count)
+    assert(in_doc.page_count == out_doc.page_count)
 
     in_page_count = in_doc.page_count
     for page_index, new_page in enumerate(out_doc):
@@ -87,8 +86,11 @@ def process(filename, in_path, in_path_processed, out_path, extractor, confidenc
             print("  Reprocessing...")
             is_changed = True
             new_page = resize_page(in_doc, out_doc, page_index)
-            replace_jpx_images(new_page, out_doc)
-            crop_images(new_page, out_doc)
+            if not digitally_born:
+                replace_jpx_images(new_page, out_doc)
+                crop_images(new_page, out_doc)
+            else:
+                print("  Copied digitally-born page.")
         else:
             continue
 

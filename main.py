@@ -76,7 +76,7 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
 
     if not reprocess:
         print("  No reprocessing required.")
-        return
+        return False
 
     in_page_count = in_doc.page_count
     for page_index, new_page in enumerate(out_doc):
@@ -118,6 +118,7 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
         raise ValueError(
             "Output document contains {} pages instead of {}".format(out_page_count, in_page_count)
         )
+    return True
 
 
 def main():
@@ -146,7 +147,7 @@ def main():
         print()
         print(asset_item.filename)
         try:
-            process(asset_item.filename, asset_item.local_path, out_path, extractor, confidence_threshold, aggressive_strategy)
+            reprocessed = process(asset_item.filename, asset_item.local_path, out_path, extractor, confidence_threshold, aggressive_strategy)
         except (ValueError, mupdf.FzErrorArgument, mupdf.FzErrorFormat) as e:
             gs_preprocess_path = os.path.join(sys.path[0], "tmp", "gs_pre_" + asset_item.filename)
             print("Encountered {}: {}. Trying Ghostscript preprocessing.".format(e.__class__.__name__, e))
@@ -161,12 +162,13 @@ def main():
                 "-sOutputFile={}".format(gs_preprocess_path),
                 asset_item.local_path
             ])
-            process(asset_item.filename, gs_preprocess_path, out_path, extractor, confidence_threshold, aggressive_strategy)
+            reprocessed = process(asset_item.filename, gs_preprocess_path, out_path, extractor, confidence_threshold, aggressive_strategy)
             os.remove(gs_preprocess_path)
 
         asset_item.cleanup()
-        target.save(asset_item)
-        target.cleanup(asset_item)
+        if reprocessed:
+            target.save(asset_item)
+            target.cleanup(asset_item)
 
 
 if __name__ == '__main__':

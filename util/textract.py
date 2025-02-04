@@ -56,6 +56,7 @@ def text_lines_from_document(
 def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_rect: fitz.Rect, rotate: float) -> list[TextLine]:
     with fitz.Document(doc_path) as doc:
         page = doc[0]
+        page_height = page.rect.height  # height of the original, unrotated page, for computing the derotated_rect
         clip_transformed = clip_rect * page.rect.torect(page.cropbox)
 
         # Even thought the documentation says that the cropbox is always contained in the mediabox, this is not always the
@@ -74,7 +75,8 @@ def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_re
 
         # Matrix to transform Textract coordinates back to PyMuPDF coordinates
         transform = textract_coordinate_transform(clip_rect=clip_rect, rotate=rotate)
-        return text_lines_from_document(document, transform, rotate, doc[0].rect.height)
+
+        return text_lines_from_document(document, transform, rotate, page_height)
 
 
 def backoff_hdlr(details):

@@ -78,6 +78,11 @@ def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
 
                 img = _pixmap_from_xref(out_doc, xref)
                 cropped_image = pymupdf.Pixmap(img, int(img.width), int(img.height), crop.round())
+                cropped_image_bytes = cropped_image.tobytes(extension, jpg_quality=85)
+                if len(cropped_image_bytes) > 0.8 * dict["size"]:
+                    print("  Skipping crop as new image is not significantly smaller.")
+                    continue
+
                 page.delete_image(xref)
 
                 insert_image_location = pymupdf.Rect(page.rect)
@@ -85,7 +90,7 @@ def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
 
                 page.insert_image(
                     insert_image_location,
-                    stream=cropped_image.tobytes(extension, jpg_quality=85),
+                    stream=cropped_image_bytes,
                     rotate=-rotation
                 )
         except ValueError:

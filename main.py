@@ -5,7 +5,7 @@ from textractor import Textractor
 from util.source import S3AssetSource, FileAssetSource
 from util.target import S3AssetTarget, FileAssetTarget, AssetTarget
 from util.util import process_page, clean_old_ocr, is_digitally_born, draw_ocr_text_page, clean_old_ocr_aggressive
-from util.crop import crop_images, replace_jpx_images
+from util.crop import crop_images, replace_jpx_images, requires_reprocessing
 from util.resize import resize_page
 from pathlib import Path
 from dotenv import dotenv_values
@@ -64,13 +64,25 @@ def load_source(config, target: AssetTarget):
 
 
 def process(filename, in_path, out_path, extractor, confidence_threshold, aggressive_strategy):
-
     in_doc = fitz.open(in_path)
     out_doc = fitz.open(in_path)
+
+    reprocess = False
+    for page_index, page in enumerate(out_doc):
+        digitally_born = is_digitally_born(in_doc[page_index])
+        reprocess = requires_reprocessing(page, out_doc, filename, digitally_born)
+        if reprocess:
+            break
+
+    if not reprocess:
+        print("  No reprocessing required.")
+        return
 
     in_page_count = in_doc.page_count
     for page_index, new_page in enumerate(out_doc):
         page_number = page_index + 1
+        if page_number != 113:
+            continue
 
         print(f"{filename}, page {page_number}/{in_page_count}")
 

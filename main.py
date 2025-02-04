@@ -4,8 +4,8 @@ from textractor import Textractor
 
 from util.source import S3AssetSource, FileAssetSource
 from util.target import S3AssetTarget, FileAssetTarget, AssetTarget
-from util.util import process_page, clean_old_ocr, new_ocr_needed, draw_ocr_text_page, clean_old_ocr_aggressive
-from util.crop import crop_images
+from util.util import process_page, clean_old_ocr, is_digitally_born, draw_ocr_text_page, clean_old_ocr_aggressive
+from util.crop import crop_images, replace_jpx_images
 from util.resize import resize_page
 from pathlib import Path
 from dotenv import dotenv_values
@@ -71,18 +71,28 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
     in_page_count = in_doc.page_count
     for page_index, new_page in enumerate(out_doc):
         page_number = page_index + 1
+
         print(f"{filename}, page {page_number}/{in_page_count}")
 
-        new_page = resize_page(in_doc, out_doc, page_index)
-        crop_images(new_page, out_doc)
+        digitally_born = is_digitally_born(in_doc[page_index])
+
+        if not digitally_born:
+            new_page = resize_page(in_doc, out_doc, page_index)
+            replace_jpx_images(new_page, out_doc)
+            crop_images(new_page, out_doc)
+        else:
+            new_page = out_doc[page_index]
+
         if aggressive_strategy:
             ignore_rects = clean_old_ocr_aggressive(new_page)
         else:
-            if new_ocr_needed(new_page):
+            if not digitally_born:
                 clean_old_ocr(new_page)
                 ignore_rects = []
             else:
+                print("  Skipping digitally-born page.")
                 continue
+
         tmp_path_prefix = os.path.join(sys.path[0], "tmp", "{}_page{}".format(filename, page_number))
         text_layer_path = os.path.join(sys.path[0], "tmp", "{}_page{}.pdf".format(filename, page_number))
         lines_to_draw = process_page(out_doc, new_page, extractor, tmp_path_prefix, confidence_threshold, ignore_rects)

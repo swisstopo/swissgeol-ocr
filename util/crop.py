@@ -27,6 +27,10 @@ def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
 
     images_info = {dict["xref"]: dict for dict in page.get_image_info(xrefs=True)}
     for xref, dict in images_info.items():
+        if dict["width"] == 1 and dict["height"] == 1:
+            # Ignore the 1x1 dummy image that is added by the PyMuPDF Page.delete_image method; see LGD-579
+            continue
+
         try:
             img_size = pymupdf.Matrix(dict["width"], dict["height"])
             extracted_img = out_doc.extract_image(xref)
@@ -72,15 +76,7 @@ def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
                 crop.transform(transform_inv)
                 crop.transform(img_size)
 
-                try:
-                    img = pymupdf.Pixmap(out_doc, xref)
-                    # Force the image into RGB color-space. Otherwise, colors might get distorted, e.g. in A8297.pdf.
-                    # See also https://github.com/pymupdf/PyMuPDF/issues/725#issuecomment-730561405
-                    img = pymupdf.Pixmap(pymupdf.csRGB, img)
-                except FzErrorFormat:
-                    print("  Unsupported image format. Skipping image.")
-                    continue
-
+                img = _pixmap_from_xref(out_doc, xref)
                 cropped_image = pymupdf.Pixmap(img, int(img.width), int(img.height), crop.round())
                 page.delete_image(xref)
 
@@ -89,7 +85,7 @@ def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
 
                 page.insert_image(
                     insert_image_location,
-                    stream=cropped_image.tobytes(pymupdf, jpg_quality=85),
+                    stream=cropped_image.tobytes(extension, jpg_quality=85),
                     rotate=-rotation
                 )
         except ValueError:

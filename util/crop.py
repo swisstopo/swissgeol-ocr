@@ -17,6 +17,40 @@ def rotation_from_transform_matrix(transform: pymupdf.Matrix) -> int | None:
                 return 270
 
 
+def requires_reprocessing(page: pymupdf.Page, doc: pymupdf.Document, filename, digitally_born):
+    if page.rotation != 0:
+        return False
+
+    images_info = {dict["xref"]: dict for dict in page.get_image_info(xrefs=True)}
+    for xref, dict in images_info.items():
+        try:
+            extracted_img = doc.extract_image(xref)
+            image_bbox = pymupdf.Rect(*dict["bbox"])
+
+            extension = extracted_img['ext']
+            if extension == 'jb2':
+                continue
+            if extension == 'jpx':
+                return True
+            if (filename < '16794.pdf' or filename > '27160.pdf') and not digitally_born:
+                continue
+
+            # allow images that are only slightly larger than the page, as cropping the image is not likely to reduce
+            # the file size (it might even increase it) and might decrease the image quality.
+            margin = 10  # in points
+            page_rect_with_margin = pymupdf.Rect(
+                page.rect.x0 - margin,
+                page.rect.y0 - margin,
+                page.rect.x1 + margin,
+                page.rect.y1 + margin
+            )
+
+            if not page_rect_with_margin.contains(image_bbox):
+                return True
+        except ValueError:
+            pass
+    return False
+
 def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
     if page.rotation != 0:
         # We had some issues with misplacement of the cropped image on pages with a non-trivial rotation, so to be on

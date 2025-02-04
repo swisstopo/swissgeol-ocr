@@ -8,6 +8,7 @@ from pathlib import Path
 
 class AssetItem:
     local_path: Path
+    local_path_processed: Path
     filename: str
 
     @abstractmethod
@@ -35,7 +36,9 @@ class FileAssetItem(AssetItem):
 class S3AssetItem(AssetItem):
     s3_bucket: any
     s3_key: str
+    s3_key_processed: str
     local_path: Path
+    local_path_processed: Path
     allow_override: bool
     do_cleanup: bool
 
@@ -45,10 +48,13 @@ class S3AssetItem(AssetItem):
     def load(self):
         if self.allow_override or not os.path.exists(self.local_path):
             self.s3_bucket.download_file(self.s3_key, self.local_path)
+        if self.allow_override or not os.path.exists(self.local_path_processed):
+            self.s3_bucket.download_file(self.s3_key_processed, self.local_path_processed)
 
     def cleanup(self):
         if self.do_cleanup:
             os.remove(self.local_path)
+            os.remove(self.local_path_processed)
 
     @staticmethod
     def key_to_filename(key):
@@ -90,12 +96,13 @@ class S3AssetSource(AssetSource):
 
     def iterator(self) -> Iterator[AssetItem]:
         objs = list(self.s3_bucket.objects.filter(Prefix=self.s3_prefix))
-
         return (
             S3AssetItem(
                 s3_bucket=self.s3_bucket,
                 s3_key=obj.key,
+                s3_key_processed="asset/asset_files/" + S3AssetItem.key_to_filename(obj.key),
                 local_path=self.input_path_fn(S3AssetItem.key_to_filename(obj.key)),
+                local_path_processed=self.input_path_fn("processed_" + S3AssetItem.key_to_filename(obj.key)),
                 allow_override=self.allow_override,
                 do_cleanup=self.do_cleanup
             )
@@ -103,4 +110,5 @@ class S3AssetSource(AssetSource):
             if obj.size
             if obj.key.lower().endswith(".pdf")
             if S3AssetItem.key_to_filename(obj.key) not in self.ignore_filenames
+            if self.s3_bucket.objects.filter(Prefix="asset/asset_files/" + S3AssetItem.key_to_filename(obj.key))
         )

@@ -5,7 +5,7 @@ from textractor import Textractor
 from util.source import S3AssetSource, FileAssetSource
 from util.target import S3AssetTarget, FileAssetTarget, AssetTarget
 from util.util import process_page, clean_old_ocr, is_digitally_born, draw_ocr_text_page, clean_old_ocr_aggressive
-from util.crop import crop_images, replace_jpx_images
+from util.crop import crop_images, replace_jpx_images, requires_reprocessing
 from util.resize import resize_page
 from pathlib import Path
 from dotenv import dotenv_values
@@ -63,10 +63,14 @@ def load_source(config, target: AssetTarget):
         sys.exit(1)
 
 
-def process(filename, in_path, out_path, extractor, confidence_threshold, aggressive_strategy):
-
+def process(filename, in_path, in_path_processed, out_path, extractor, confidence_threshold, aggressive_strategy):
+    is_changed = False
     in_doc = fitz.open(in_path)
-    out_doc = fitz.open(in_path)
+    in_doc_resize = fitz.open(in_path)
+    in_doc_processed = fitz.open(in_path_processed)
+    out_doc = fitz.open(in_path_processed)
+
+    assert(in_doc.page_count == in_doc_processed.page_count)
 
     in_page_count = in_doc.page_count
     for page_index, new_page in enumerate(out_doc):
@@ -76,12 +80,17 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
 
         digitally_born = is_digitally_born(in_doc[page_index])
 
-        if not digitally_born:
+        new_page = resize_page(in_doc, in_doc_resize, page_index)
+        reprocess = requires_reprocessing(new_page, in_doc_resize, filename, digitally_born)
+
+        if reprocess:
+            print("  Reprocessing...")
+            is_changed = True
             new_page = resize_page(in_doc, out_doc, page_index)
             replace_jpx_images(new_page, out_doc)
             crop_images(new_page, out_doc)
         else:
-            new_page = out_doc[page_index]
+            continue
 
         if aggressive_strategy:
             ignore_rects = clean_old_ocr_aggressive(new_page)
@@ -97,17 +106,20 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
         text_layer_path = os.path.join(sys.path[0], "tmp", "{}_page{}.pdf".format(filename, page_number))
         lines_to_draw = process_page(out_doc, new_page, extractor, tmp_path_prefix, confidence_threshold, ignore_rects)
         draw_ocr_text_page(new_page, text_layer_path, lines_to_draw)
-    out_doc.save(out_path, deflate=True, garbage=3, use_objstms=1)
 
-    # Verify that we can read the written document, and that it still has the same number of pages. Some corrupt input
-    # documents might lead to an empty or to a corrupt output document, sometimes even without throwing an error. (See
-    # LGD-283.) This check should detect such cases.
-    doc = fitz.open(out_path)
-    out_page_count = doc.page_count
-    if in_page_count != out_page_count:
-        raise ValueError(
-            "Output document contains {} pages instead of {}".format(out_page_count, in_page_count)
-        )
+    if is_changed:
+        out_doc.save(out_path, clean=True, deflate=True, garbage=3, use_objstms=1)
+
+        # Verify that we can read the written document, and that it still has the same number of pages. Some corrupt input
+        # documents might lead to an empty or to a corrupt output document, sometimes even without throwing an error. (See
+        # LGD-283.) This check should detect such cases.
+        doc = fitz.open(out_path)
+        out_page_count = doc.page_count
+        if in_page_count != out_page_count:
+            raise ValueError(
+                "Output document contains {} pages instead of {}".format(out_page_count, in_page_count)
+            )
+    return is_changed
 
 
 def main():
@@ -136,7 +148,7 @@ def main():
         print()
         print(asset_item.filename)
         try:
-            process(asset_item.filename, asset_item.local_path, out_path, extractor, confidence_threshold, aggressive_strategy)
+            is_changed = process(asset_item.filename, asset_item.local_path, asset_item.local_path_processed, out_path, extractor, confidence_threshold, aggressive_strategy)
         except (ValueError, mupdf.FzErrorArgument, mupdf.FzErrorFormat) as e:
             gs_preprocess_path = os.path.join(sys.path[0], "tmp", "gs_pre_" + asset_item.filename)
             print("Encountered {}: {}. Trying Ghostscript preprocessing.".format(e.__class__.__name__, e))
@@ -151,11 +163,15 @@ def main():
                 "-sOutputFile={}".format(gs_preprocess_path),
                 asset_item.local_path
             ])
-            process(asset_item.filename, gs_preprocess_path, out_path, extractor, confidence_threshold, aggressive_strategy)
+            is_changed = process(asset_item.filename, gs_preprocess_path, asset_item.local_path_processed, out_path, extractor, confidence_threshold, aggressive_strategy)
             os.remove(gs_preprocess_path)
 
         asset_item.cleanup()
-        target.save(asset_item)
+        if is_changed:
+            print("Saving file to S3")
+            target.save(asset_item)
+        else:
+            print("File did not change")
         target.cleanup(asset_item)
 
 

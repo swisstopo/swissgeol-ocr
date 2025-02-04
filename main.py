@@ -81,8 +81,6 @@ def process(filename, in_path, out_path, extractor, confidence_threshold, aggres
     in_page_count = in_doc.page_count
     for page_index, new_page in enumerate(out_doc):
         page_number = page_index + 1
-        if page_number != 113:
-            continue
 
         print(f"{filename}, page {page_number}/{in_page_count}")
 

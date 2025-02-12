@@ -34,7 +34,7 @@ class ScriptSettings(SharedSettings):
     input_aws_profile: str | None = None
     input_s3_bucket: str | None = None
     input_s3_prefix: str | None = None
-    input_ignore_existing: bool
+    input_skip_existing: bool
 
     output_type: Literal['path', 's3']
     output_path: str | None = None

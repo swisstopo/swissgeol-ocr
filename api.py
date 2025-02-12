@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import FastAPI, Depends, status, HTTPException, BackgroundTasks, Response
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
+from pathlib import Path
 
 import ocr
 from aws import aws
@@ -102,16 +103,16 @@ def process(
         return
 
     task_id = f"{uuid.uuid4()}"
-    tmp_dir = os.path.join(settings.tmp_path, task_id)
+    tmp_dir = Path(settings.tmp_path) / task_id
     os.makedirs(tmp_dir, exist_ok=True)
 
-    input_path = os.path.join(tmp_dir, "input.pdf")
-    output_path = os.path.join(tmp_dir, "output.pdf")
+    input_path = tmp_dir / "input.pdf"
+    output_path = tmp_dir / "output.pdf"
 
     aws.load_file(
         aws_client.bucket(settings.s3_input_bucket),
         f'{settings.s3_input_folder}{payload.file}',
-        input_path,
+        str(input_path),
     )
 
     ocr.process(
@@ -126,7 +127,7 @@ def process(
     aws.store_file(
         aws_client.bucket(settings.s3_output_bucket),
         f'{settings.s3_output_folder}{payload.file}',
-        output_path,
+        str(output_path),
     )
 
     shutil.rmtree(tmp_dir)

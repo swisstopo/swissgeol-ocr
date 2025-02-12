@@ -69,11 +69,11 @@ class FileAssetSource(AssetSource):
                 if os.path.basename(path).endswith(".pdf") and os.path.basename(path) not in self.skip_filenames
             )
         else:
-            return iter((FileAssetItem(
+            return iter([FileAssetItem(
                 local_path=self.in_path,
                 filename=os.path.basename(self.in_path),
                 tmp_path=self.tmp_dir / os.path.basename(self.in_path)
-            )))
+            )])
 
 
 @dataclass

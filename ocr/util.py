@@ -167,16 +167,15 @@ def draw_ocr_text_page(
         page.set_rotation(original_rotation)
     return
 
-def new_ocr_needed(page: fitz.Page) -> bool:
+def is_digitally_born(page: fitz.Page) -> bool:
     bboxes = page.get_bboxlog()
 
     for boxType, rectangle in bboxes:
         # Empty rectangle that should be ignored occurs sometimes, e.g. SwissGeol 44191 page 37.
         if (boxType == "fill-text" or boxType == "stroke-text") and not fitz.Rect(rectangle).is_empty:
             print("  skipped")
-            return False
-        pass
-    return True
+            return True
+    return False
 
 
 def clean_old_ocr(page: fitz.Page):

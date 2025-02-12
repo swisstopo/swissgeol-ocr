@@ -1,4 +1,4 @@
-import fitz
+import pymupdf
 from mypy_boto3_textract import TextractClient as Textractor
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas
@@ -9,12 +9,12 @@ from ocr.readingorder import TextLine, TextWord
 
 
 def process_page(
-        doc: fitz.Document,
-        page: fitz.Page,
+        doc: pymupdf.Document,
+        page: pymupdf.Page,
         extractor: Textractor,
         tmp_path_prefix: str,
         confidence_threshold: float,
-        ignore_rects: list[fitz.Rect] | None = None
+        ignore_rects: list[pymupdf.Rect] | None = None
 ):
     if ignore_rects is None:
         ignore_rects = []
@@ -22,7 +22,7 @@ def process_page(
     page.clean_contents()
 
     # create a single-page PDF document that can be modified if necessary, before being sent to AWS Textract
-    textract_doc = fitz.Document()
+    textract_doc = pymupdf.Document()
     textract_doc.insert_pdf(doc, from_page=page.number, to_page=page.number)
 
     page_ocr = OCR(
@@ -79,7 +79,7 @@ def draw_ocr_word(
 
 
 def draw_ocr_text_page(
-        page: fitz.Page,
+        page: pymupdf.Page,
         text_layer_path: str,
         lines: list[TextLine]
 ):
@@ -160,25 +160,25 @@ def draw_ocr_text_page(
     c.showPage()
     c.save()
 
-    with fitz.open(text_layer_path) as text_layer_doc:
+    with pymupdf.open(text_layer_path) as text_layer_doc:
         original_rotation = page.rotation
         page.set_rotation(0)
         page.show_pdf_page(page.rect, text_layer_doc, rotate=original_rotation)
         page.set_rotation(original_rotation)
     return
 
-def is_digitally_born(page: fitz.Page) -> bool:
+def is_digitally_born(page: pymupdf.Page) -> bool:
     bboxes = page.get_bboxlog()
 
     for boxType, rectangle in bboxes:
         # Empty rectangle that should be ignored occurs sometimes, e.g. SwissGeol 44191 page 37.
-        if (boxType == "fill-text" or boxType == "stroke-text") and not fitz.Rect(rectangle).is_empty:
+        if (boxType == "fill-text" or boxType == "stroke-text") and not pymupdf.Rect(rectangle).is_empty:
             print("  skipped")
             return True
     return False
 
 
-def clean_old_ocr(page: fitz.Page):
+def clean_old_ocr(page: pymupdf.Page):
     bboxes = page.get_bboxlog()
 
     counter = 0
@@ -190,11 +190,11 @@ def clean_old_ocr(page: fitz.Page):
         # Applying all redactions at once seems more reliable than applying every redact annotation separately, because
         # when removing part of some text, the remaining text sometimes seems to mysteriously move to a different
         # position on the page.
-        page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
+        page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE)
         print("  {} boxes removed".format(counter))
 
 
-def clean_old_ocr_aggressive(page: fitz.Page) -> list[fitz.Rect]:
+def clean_old_ocr_aggressive(page: pymupdf.Page) -> list[pymupdf.Rect]:
     """
     Also cleans "fill-text" and "stroke-text" areas that are completely covered by some image.
 
@@ -206,7 +206,7 @@ def clean_old_ocr_aggressive(page: fitz.Page) -> list[fitz.Rect]:
     possibly_visible_text = []
     invisible_text = []
     for boxType, rectangle in bboxes:
-        rect = fitz.Rect(rectangle)
+        rect = pymupdf.Rect(rectangle)
         if boxType == "ignore-text":
             # Some digitally-born documents (e.g. ZH 267124198-bp.pdf) draw the text using fill-path elements and then
             # add `ignore-text` to make the text searchable/selectable. We don't want to remove these.
@@ -227,7 +227,7 @@ def clean_old_ocr_aggressive(page: fitz.Page) -> list[fitz.Rect]:
         # Applying all redactions at once seems more reliable than applying every redact annotation separately, because
         # when removing part of some text, the remaining text sometimes seems to mysteriously move to a different
         # position on the page.
-        page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
+        page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE)
         print("  {} boxes removed".format(counter))
 
     if len(possibly_visible_text):

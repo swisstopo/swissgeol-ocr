@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import fitz
+import pymupdf
 import os
 import backoff
 from botocore.exceptions import ClientError
@@ -19,17 +19,17 @@ MAX_DIMENSION_POINTS = 2000
 
 
 def textract_coordinate_transform(
-        clip_rect: fitz.Rect,
+        clip_rect: pymupdf.Rect,
         rotate: float
-) -> fitz.Matrix:
+) -> pymupdf.Matrix:
     # The rectangle surrounding the rotated version of the clip (corresponds to the page that was sent to AWS Textract)
-    rotated_clip_rect = (clip_rect.quad * fitz.Matrix(1, 1).prerotate(rotate)).rect
+    rotated_clip_rect = (clip_rect.quad * pymupdf.Matrix(1, 1).prerotate(rotate)).rect
 
     # Matrix to transform the Textract coordinates to the rotated PyMuPDF coordinates
-    transform1 = fitz.Rect(0, 0, 1, 1).torect(rotated_clip_rect)
+    transform1 = pymupdf.Rect(0, 0, 1, 1).torect(rotated_clip_rect)
 
     # Matrix to change the PyMuPDF coordinates back to the unrotated version
-    transform2 = fitz.Matrix(1, 1).prerotate(-rotate)
+    transform2 = pymupdf.Matrix(1, 1).prerotate(-rotate)
 
     # Matrix to transform the Textract coordinates back to the original unrotated PyMuPDF coordinates
     return transform1 * transform2
@@ -37,7 +37,7 @@ def textract_coordinate_transform(
 
 def text_lines_from_document(
         document: t1.Document,
-        transform: fitz.Matrix,
+        transform: pymupdf.Matrix,
         rotate: float,
         page_height: float
 ) -> list[TextLine]:
@@ -51,7 +51,7 @@ def text_lines_from_document(
     return [TextLine.from_textract(line, orientation - rotate, page_height, transform) for line in page.lines]
 
 
-def textract(doc: fitz.Document, extractor: Textractor, tmp_file_path: str, clip_rect: fitz.Rect, rotate: float) -> list[TextLine]:
+def textract(doc: pymupdf.Document, extractor: Textractor, tmp_file_path: str, clip_rect: pymupdf.Rect, rotate: float) -> list[TextLine]:
     page = doc[0]
     old_rotation = page.rotation
     old_cropbox = page.cropbox
@@ -110,7 +110,7 @@ def call_textract(extractor: Textractor, tmp_file_path: str) -> t1.Document | No
     return t1.Document(t2.TDocumentSchema().dump(t_document))
 
 
-def clip_rects(main_rect: fitz.Rect) -> list[fitz.Rect]:
+def clip_rects(main_rect: pymupdf.Rect) -> list[pymupdf.Rect]:
     # Create small enough subsections of the page, so that AWS Textract gives good results. Even though Textract
     # officially supports up to 10000px width and height, we see a significant decrease in quality once one dimension
     # exceeds ca. 5000px. (Cf. LGD-319.)
@@ -123,7 +123,7 @@ def clip_rects(main_rect: fitz.Rect) -> list[fitz.Rect]:
         y_starts = range(0, int(main_rect.height - overlap), MAX_DIMENSION_POINTS - overlap)
         clip_rects = [main_rect]
         clip_rects.extend([
-            fitz.Rect(x0, y0, x0 + MAX_DIMENSION_POINTS, y0 + MAX_DIMENSION_POINTS).intersect(main_rect)
+            pymupdf.Rect(x0, y0, x0 + MAX_DIMENSION_POINTS, y0 + MAX_DIMENSION_POINTS).intersect(main_rect)
             for x0 in x_starts
             for y0 in y_starts
         ])
@@ -141,5 +141,5 @@ def not_covered_in(line: TextLine, other_lines: list[TextLine]) -> bool:
     return not any(
         True
         for other_line in other_lines
-        if fitz.Rect(other_line.rect).intersect(line.rect).get_area() > 0.6 * line.rect.get_area()
+        if pymupdf.Rect(other_line.rect).intersect(line.rect).get_area() > 0.6 * line.rect.get_area()
     )

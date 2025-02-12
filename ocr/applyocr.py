@@ -1,4 +1,4 @@
-import fitz
+import pymupdf
 from ocr.readingorder import sort_lines, TextLine
 from ocr.textract import combine_text_lines, textract, clip_rects, MAX_DIMENSION_POINTS
 from mypy_boto3_textract import TextractClient as Textractor
@@ -10,8 +10,8 @@ class OCR:
             self,
             textractor: Textractor,
             confidence_threshold: float,
-            textract_doc: fitz.Document,
-            ignore_rects: list[fitz.Rect],
+            textract_doc: pymupdf.Document,
+            ignore_rects: list[pymupdf.Rect],
             tmp_path_prefix: str
     ):
         self.textractor = textractor
@@ -25,7 +25,7 @@ class OCR:
     def tmp_file_path(self, extension: str) -> str:
         return "{}_{}.{}".format(self.tmp_path_prefix, uuid4(), extension)
 
-    def apply_ocr(self, clip_rect: fitz.Rect):
+    def apply_ocr(self, clip_rect: pymupdf.Rect):
         """Apply OCR with double page workaround and vertical check"""
         text_lines = self._ocr_text_lines(clip_rect, rotate=0)
 
@@ -37,11 +37,11 @@ class OCR:
             print("  Double page workaround")
             page_rect = self.page.rect
 
-            left_clip_rect = (page_rect * fitz.Matrix(0.5, 1))
+            left_clip_rect = (page_rect * pymupdf.Matrix(0.5, 1))
             left_text_lines = self._ocr_text_lines(left_clip_rect, rotate=0)
             lines_to_draw = self.apply_vertical_check(left_text_lines, left_clip_rect)
 
-            right_clip_rect = (page_rect * fitz.Matrix(0.5, 1).pretranslate(page_rect.width, 0))
+            right_clip_rect = (page_rect * pymupdf.Matrix(0.5, 1).pretranslate(page_rect.width, 0))
             right_text_lines = self._ocr_text_lines(right_clip_rect, rotate=0)
             lines_to_draw.extend(self.apply_vertical_check(right_text_lines, right_clip_rect))
 
@@ -49,7 +49,7 @@ class OCR:
         else:
             return self.apply_vertical_check(text_lines, clip_rect)
 
-    def apply_vertical_check(self, text_lines: list[TextLine], clip_rect: fitz.Rect):
+    def apply_vertical_check(self, text_lines: list[TextLine], clip_rect: pymupdf.Rect):
         lines_to_draw, processed_rects, vertical_detected = (
             get_ocr_lines(text_lines, self.ignore_rects, self.confidence_threshold, detect_vertical=True)
         )
@@ -60,7 +60,7 @@ class OCR:
                 self.page.draw_rect(
                     rect * self.page.derotation_matrix,
                     width=0,
-                    fill=fitz.utils.getColor("white")
+                    fill=pymupdf.utils.getColor("white")
                 )
             vertical_text_lines = self._ocr_text_lines(clip_rect, rotate=90)
             vertical_draw_lines, _, _ = (
@@ -69,7 +69,7 @@ class OCR:
             lines_to_draw.extend(vertical_draw_lines)
         return lines_to_draw
 
-    def _ocr_text_lines(self, clip_rect: fitz.Rect, rotate: float) -> list[TextLine]:
+    def _ocr_text_lines(self, clip_rect: pymupdf.Rect, rotate: float) -> list[TextLine]:
         text_lines = []
         final_clip_rects = clip_rects(clip_rect)
         for final_clip_rect in final_clip_rects:
@@ -77,17 +77,17 @@ class OCR:
             text_lines = combine_text_lines(text_lines, new_lines)
         return text_lines
 
-    def _intersects_middle(self, line_rect: fitz.Rect, confidence: float) -> bool:
+    def _intersects_middle(self, line_rect: pymupdf.Rect, confidence: float) -> bool:
         page_middle = (self.page.rect.x0 + self.page.rect.x1) / 2
         return confidence > self.confidence_threshold and not(line_rect.x0 > page_middle or line_rect.x1 < page_middle)
 
 
 def get_ocr_lines(
         text_lines: list[TextLine],
-        ignore_rects: list[fitz.Rect],
+        ignore_rects: list[pymupdf.Rect],
         confidence_threshold: float,
         detect_vertical: bool = True
-) -> (list[TextLine], list[fitz.Rect], bool):
+) -> (list[TextLine], list[pymupdf.Rect], bool):
     draw_lines = []
     processed_rects = []
     vertical_detected = False

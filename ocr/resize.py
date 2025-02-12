@@ -1,7 +1,7 @@
-import fitz
+import pymupdf
 
 
-def resize_page(in_doc: fitz.Document, out_doc: fitz.Document, page_index: int) -> fitz.Page:
+def resize_page(in_doc: pymupdf.Document, out_doc: pymupdf.Document, page_index: int) -> pymupdf.Page:
     src_page = in_doc[page_index]
     page_rect = src_page.rect
     src_page_rotation = src_page.rotation

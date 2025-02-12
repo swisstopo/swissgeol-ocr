@@ -1,6 +1,6 @@
 amazon-textract-textractor
 backoff
-pymupdf
+pymupdf >= 1.25.1
 reportlab
 python-dotenv
 python-multipart

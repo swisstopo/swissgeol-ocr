@@ -1,4 +1,5 @@
 import pymupdf
+import os
 from mypy_boto3_textract import TextractClient as Textractor
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas
@@ -24,15 +25,18 @@ def process_page(
     # create a single-page PDF document that can be modified if necessary, before being sent to AWS Textract
     textract_doc = pymupdf.Document()
     textract_doc.insert_pdf(doc, from_page=page.number, to_page=page.number)
+    textract_doc_path = OCR.tmp_file_path(tmp_path_prefix, "pdf")
+    textract_doc.save(textract_doc_path)
 
     page_ocr = OCR(
         textractor=extractor,
         confidence_threshold=confidence_threshold,
-        textract_doc=textract_doc,
+        textract_doc_path=textract_doc_path,
         ignore_rects=ignore_rects,
         tmp_path_prefix=tmp_path_prefix
     )
     lines_to_draw = page_ocr.apply_ocr(clip_rect=page.rect)
+    os.remove(textract_doc_path)
     print("  {} new lines found".format(len(lines_to_draw)))
     return lines_to_draw
 
@@ -160,11 +164,16 @@ def draw_ocr_text_page(
     c.showPage()
     c.save()
 
-    with pymupdf.open(text_layer_path) as text_layer_doc:
-        original_rotation = page.rotation
-        page.set_rotation(0)
+    original_rotation = page.rotation
+    page.set_rotation(0)
+    with open(text_layer_path, 'rb') as text_layer_file:
+        data = text_layer_file.read()
+    # For some reason, a PyMuPDF document is not correctly closed after calling show_pdf_page with it. To avoid a
+    # "too many open files" error, we first load the text layer into memory, and only then create a PyMuPDF doc from it.
+    with pymupdf.Document(stream=data) as text_layer_doc:
         page.show_pdf_page(page.rect, text_layer_doc, rotate=original_rotation)
-        page.set_rotation(original_rotation)
+    page.set_rotation(original_rotation)
+    os.remove(text_layer_path)
     return
 
 def is_digitally_born(page: pymupdf.Page) -> bool:

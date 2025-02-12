@@ -27,6 +27,10 @@ def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
 
     images_info = {dict["xref"]: dict for dict in page.get_image_info(xrefs=True)}
     for xref, dict in images_info.items():
+        if dict["width"] == 1 and dict["height"] == 1:
+            # Ignore the 1x1 dummy image that is added by the PyMuPDF Page.delete_image method; see LGD-579
+            continue
+
         try:
             img_size = pymupdf.Matrix(dict["width"], dict["height"])
             extracted_img = out_doc.extract_image(xref)
@@ -37,12 +41,6 @@ def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
                 # Example PDF file with a JBIG2 image: A204.pdf
                 print("  Skipping JBIG2 image.")
                 continue
-            if extension == 'jpx':
-                # Some viewer, most notably the Edge browser, have problems displaying JPX images (slow / bad quality).
-                # Therefore, we convert them to JPG.
-                new_extension = 'jpg'
-            else:
-                new_extension = extension
 
             # allow images that are only slightly larger than the page, as cropping the image is not likely to reduce
             # the file size (it might even increase it) and might decrease the image quality.
@@ -54,7 +52,7 @@ def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
                 page.rect.y1 + margin
             )
 
-            if not page_rect_with_margin.contains(image_bbox) or new_extension != extension:
+            if not page_rect_with_margin.contains(image_bbox):
                 print("  Cropping {} image (bbox {}, page.rect {}).".format(extension, image_bbox, page.rect))
                 transform = pymupdf.Matrix(dict["transform"])
 
@@ -78,16 +76,13 @@ def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
                 crop.transform(transform_inv)
                 crop.transform(img_size)
 
-                try:
-                    img = pymupdf.Pixmap(out_doc, xref)
-                    # Force the image into RGB color-space. Otherwise, colors might get distorted, e.g. in A8297.pdf.
-                    # See also https://github.com/pymupdf/PyMuPDF/issues/725#issuecomment-730561405
-                    img = pymupdf.Pixmap(pymupdf.csRGB, img)
-                except FzErrorFormat:
-                    print("  Unsupported image format. Skipping image.")
+                img = _pixmap_from_xref(out_doc, xref)
+                cropped_image = pymupdf.Pixmap(img, int(img.width), int(img.height), crop.round())
+                cropped_image_bytes = cropped_image.tobytes(extension, jpg_quality=85)
+                if len(cropped_image_bytes) > 0.8 * dict["size"]:
+                    print("  Skipping crop as new image is not significantly smaller.")
                     continue
 
-                cropped_image = pymupdf.Pixmap(img, int(img.width), int(img.height), crop.round())
                 page.delete_image(xref)
 
                 insert_image_location = pymupdf.Rect(page.rect)
@@ -95,8 +90,37 @@ def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
 
                 page.insert_image(
                     insert_image_location,
-                    stream=cropped_image.tobytes(new_extension, jpg_quality=85),
+                    stream=cropped_image_bytes,
                     rotate=-rotation
                 )
         except ValueError:
             print("  Encountered ValueError, skipping image crop.")
+
+
+
+def replace_jpx_images(page: pymupdf.Page, out_doc: pymupdf.Document):
+    images_info = {dict["xref"]: dict for dict in page.get_image_info(xrefs=True)}
+    for xref, dict in images_info.items():
+        try:
+            extracted_img = out_doc.extract_image(xref)
+            if extracted_img['ext'] == 'jpx':
+                # Some viewer, most notably the Edge browser, have problems displaying JPX images (slow / bad quality).
+                # Therefore, we convert them to JPG.
+                image_bbox = pymupdf.Rect(*dict["bbox"])
+                print(f"  Converting JPX image to JPG (bbox {image_bbox}, page.rect {page.rect}).")
+
+                img = _pixmap_from_xref(out_doc, xref)
+                if img:
+                    page.replace_image(xref, stream=img.tobytes('jpg', jpg_quality=85))
+        except ValueError:
+            print(f"  Encountered ValueError for xref {xref}, skipping replace_jpx_images.")
+
+
+def _pixmap_from_xref(doc: pymupdf.Document, xref: int) -> pymupdf.Pixmap:
+    try:
+        img = pymupdf.Pixmap(doc, xref)
+        # Force the image into RGB color-space. Otherwise, colors might get distorted, e.g. in A8297.pdf.
+        # See also https://github.com/pymupdf/PyMuPDF/issues/725#issuecomment-730561405
+        return pymupdf.Pixmap(pymupdf.csRGB, img)
+    except FzErrorFormat:
+        print("  Unsupported image format. Skipping image.")

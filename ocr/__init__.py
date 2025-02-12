@@ -7,7 +7,7 @@ from pymupdf.mupdf import PDF_ENCRYPT_KEEP
 from pathlib import Path
 from mypy_boto3_textract import TextractClient as Textractor
 
-from ocr.crop import crop_images
+from ocr.crop import crop_images, replace_jpx_images
 from ocr.resize import resize_page
 from ocr.util import process_page, clean_old_ocr, is_digitally_born, draw_ocr_text_page, clean_old_ocr_aggressive
 
@@ -81,6 +81,7 @@ def process_pdf(
 
         if not digitally_born:
             new_page = resize_page(in_doc, out_doc, page_index)
+            replace_jpx_images(new_page, out_doc)
             crop_images(new_page, out_doc)
         else:
             new_page = out_doc[page_index]

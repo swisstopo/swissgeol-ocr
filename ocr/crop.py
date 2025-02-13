@@ -97,7 +97,6 @@ def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
             print("  Encountered ValueError, skipping image crop.")
 
 
-
 def replace_jpx_images(page: pymupdf.Page, out_doc: pymupdf.Document):
     images_info = {dict["xref"]: dict for dict in page.get_image_info(xrefs=True)}
     for xref, dict in images_info.items():
@@ -114,6 +113,23 @@ def replace_jpx_images(page: pymupdf.Page, out_doc: pymupdf.Document):
                     page.replace_image(xref, stream=img.tobytes('jpg', jpg_quality=85))
         except ValueError:
             print(f"  Encountered ValueError for xref {xref}, skipping replace_jpx_images.")
+
+
+def downscale_images_x2(page: pymupdf.Page, doc: pymupdf.Document):
+    images_info = {dict["xref"]: dict for dict in page.get_image_info(xrefs=True)}
+    for xref, dict in images_info.items():
+        try:
+            extracted_img = doc.extract_image(xref)
+            ext = extracted_img['ext']
+            image_bbox = pymupdf.Rect(*dict["bbox"])
+            print(f"  Downscaling {ext} image (width {dict['width']}, height {dict['height']}, bbox {image_bbox}, page.rect {page.rect}).")
+
+            img = _pixmap_from_xref(doc, xref)
+            img.shrink(1)  # reduce width and height by a factor of 2^1 = 2
+            if img:
+                page.replace_image(xref, stream=img.tobytes(ext, jpg_quality=85))
+        except ValueError:
+            print(f"  Encountered ValueError for xref {xref}, skipping downscale_images_x2.")
 
 
 def _pixmap_from_xref(doc: pymupdf.Document, xref: int) -> pymupdf.Pixmap:

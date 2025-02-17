@@ -80,11 +80,17 @@ def process_pdf(
         digitally_born = is_digitally_born(in_doc[page_index])
 
         if not digitally_born:
-            new_page = resize_page(in_doc, out_doc, page_index)
-            replace_jpx_images(new_page, out_doc)
-            crop_images(new_page, out_doc)
-        else:
-            new_page = out_doc[page_index]
+            # We reload the page using doc[page_index] every time before calling page.get_image_info(), instead of
+            # re-using the same page object, as the latter can lead to strange behaviour (xref=0 and outdated values
+            # from the second page.get_image_info() call). This is because the result of the page.get_image_info()
+            # call is cached on the Page object, and this cache is not autmoatically cleared when modifying some of the
+            # images (e.g. calling page.replace_image()). See e.g.
+            # https://github.com/pymupdf/PyMuPDF/blob/0a9c2e85c70da1991c6336fe9760bf844d06a7af/src/utils.py#L829
+            resize_page(in_doc, out_doc, page_index)
+            replace_jpx_images(out_doc, page_index)
+            crop_images(out_doc, page_index)
+
+        new_page = out_doc[page_index]
 
         if use_aggressive_strategy:
             ignore_rects = clean_old_ocr_aggressive(new_page)

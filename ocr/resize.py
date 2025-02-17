@@ -18,4 +18,3 @@ def resize_page(in_doc: pymupdf.Document, out_doc: pymupdf.Document, page_index:
         # We first insert the new page and only then delete the old one; this fixes an issue with 28957.pdf, where
         # we encountered the error "pymupdf.mupdf.FzErrorFormat: code=7: kid not found in parent's kids array".
         out_doc.delete_page(page_index + 1)
-    return out_doc[page_index]

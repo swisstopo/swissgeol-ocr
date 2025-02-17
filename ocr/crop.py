@@ -17,7 +17,9 @@ def rotation_from_transform_matrix(transform: pymupdf.Matrix) -> int | None:
                 return 270
 
 
-def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
+def crop_images(out_doc: pymupdf.Document, page_index: int):
+    page = out_doc[page_index]
+
     if page.rotation != 0:
         # We had some issues with misplacement of the cropped image on pages with a non-trivial rotation, so to be on
         # the safe side, we enforce rotation=0. The preceding resize step should normally have reset the page rotation
@@ -25,8 +27,8 @@ def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
         print("  Skipping page because rotation is not 0 but {}.".format(page.rotation))
         return
 
-    images_info = {dict["xref"]: dict for dict in page.get_image_info(xrefs=True)}
-    for xref, dict in images_info.items():
+    for dict in page.get_image_info(xrefs=True):
+        xref = dict["xref"]
         if dict["width"] == 1 and dict["height"] == 1:
             # Ignore the 1x1 dummy image that is added by the PyMuPDF Page.delete_image method; see LGD-579
             continue
@@ -97,18 +99,20 @@ def crop_images(page: pymupdf.Page, out_doc: pymupdf.Document):
             print("  Encountered ValueError, skipping image crop.")
 
 
-def replace_jpx_images(page: pymupdf.Page, out_doc: pymupdf.Document):
-    images_info = {dict["xref"]: dict for dict in page.get_image_info(xrefs=True)}
-    for xref, dict in images_info.items():
+
+def replace_jpx_images(doc: pymupdf.Document, page_index: int):
+    page = doc[page_index]
+    for dict in page.get_image_info(xrefs=True):
+        xref = dict['xref']
         try:
-            extracted_img = out_doc.extract_image(xref)
+            extracted_img = doc.extract_image(xref)
             if extracted_img['ext'] == 'jpx':
                 # Some viewer, most notably the Edge browser, have problems displaying JPX images (slow / bad quality).
                 # Therefore, we convert them to JPG.
                 image_bbox = pymupdf.Rect(*dict["bbox"])
                 print(f"  Converting JPX image to JPG (bbox {image_bbox}, page.rect {page.rect}).")
 
-                img = _pixmap_from_xref(out_doc, xref)
+                img = _pixmap_from_xref(doc, xref)
                 if img:
                     page.replace_image(xref, stream=img.tobytes('jpg', jpg_quality=85))
         except ValueError:

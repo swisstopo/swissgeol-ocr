@@ -38,7 +38,7 @@ def process_page(
         print(f"  Page size is {page_size / 1024 / 1024:.2f} MB, trying to downscale images.")
         # We only reduce the image resolution in the temporary PDF file that is used for AWS Textact, not in the
         # original PDF file.
-        downscale_images_x2(textract_doc[0], textract_doc)
+        downscale_images_x2(textract_doc, page_index=0)
         textract_doc.save(textract_doc_path, deflate=True, garbage=3, use_objstms=1)
 
     if os.path.getsize(textract_doc_path) < ten_mb:

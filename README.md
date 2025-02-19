@@ -1,9 +1,11 @@
 # swissgeol.ch OCR service
 
-Source code for the OCR scripts that are used at the Swiss [
-Federal Office of Topography swisstopo](https://www.swisstopo.admin.ch/)
-for digitising geological documents for internal use as well as for publication on
-the [swissgeol.ch](https://www.swissgeol.ch/) platform.
+Source code for the OCR scripts that are used at the Swiss [Federal Office of Topography swisstopo](
+https://www.swisstopo.admin.ch/) for digitising geological documents for internal use as well as for publication on the 
+[swissgeol.ch](https://www.swissgeol.ch/) platform, in particular to the  applications [assets.swissgeol.ch](
+https://assets.swissgeol.ch/) ([GitHub Repo](https://github.com/swisstopo/swissgeol-assets-suite)) and [
+boreholes.swissgeol.ch](https://boreholes.swissgeol.ch/) ([GitHub Repo](
+https://github.com/swisstopo/swissgeol-boreholes-suite)). 
 
 OCR processing is supported both in script form and as REST API.
 To process PDF files, the [AWS Textract](https://aws.amazon.com/de/textract/) service is called for each page.
@@ -43,6 +45,12 @@ The script can be executed like any normal Python script file:
 python main.py
 ```
 
+To run the script while additionally appending all output to a log file, you can use the following command:
+
+```bash
+python -u main.py | tee output.log 
+```
+
 The API is built on [FastAPI](https://fastapi.tiangolo.com/) and can be run by its CLI:
 ```bash
 fastapi run api.py
@@ -80,7 +88,7 @@ INPUT_TYPE=S3
 INPUT_AWS_PROFILE=s3-assets
 INPUT_S3_BUCKET=swissgeol-assets-swisstopo
 INPUT_S3_PREFIX=asset/asset_files/
-INPUT_IGNORE_EXISTING=TRUE
+INPUT_SKIP_EXISTING=TRUE
 
 OUTPUT_TYPE=S3
 OUTPUT_AWS_PROFILE=s3-assets

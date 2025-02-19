@@ -1,7 +1,6 @@
 import os
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Callable
 from pathlib import Path
 
 from ocr.source import AssetItem, S3AssetItem
@@ -42,13 +41,13 @@ class FileAssetTarget(AssetTarget):
 class S3AssetTarget(AssetTarget):
     s3_bucket: any
     s3_prefix: str
-    output_path_fn: Callable[[str], Path]
+    tmp_dir: Path
 
     def save(self, item: AssetItem):
         self.s3_bucket.upload_file(self.local_path(item), self.s3_prefix + item.filename)
 
     def local_path(self, item: AssetItem) -> Path:
-        return self.output_path_fn(item.filename)
+        return item.tmp_path / ("new_" + item.filename)
 
     def existing_filenames(self) -> set[str]:
         return {

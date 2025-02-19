@@ -2,6 +2,7 @@ import os
 import subprocess
 
 import fitz
+from pathlib import Path
 from mypy_boto3_textract import TextractClient as Textractor
 from pymupdf.mupdf import PDF_ENCRYPT_KEEP
 
@@ -11,9 +12,9 @@ from ocr.util import process_page, clean_old_ocr, new_ocr_needed, draw_ocr_text_
 
 
 def process(
-        input_path: str,
-        output_path: str,
-        tmp_dir: str,
+        input_path: Path,
+        output_path: Path,
+        tmp_dir: Path,
         textractor: Textractor,
         confidence_threshold: float,
         use_aggressive_strategy: bool,
@@ -28,7 +29,7 @@ def process(
             use_aggressive_strategy
         )
     except ValueError as e:
-        gs_preprocess_path = os.path.join(tmp_dir, "gs.pdf")
+        gs_preprocess_path = tmp_dir / "gs.pdf"
         print(f"Encountered ValueError: {e}. Trying Ghostscript preprocessing.")
         subprocess.call([
             "gs",
@@ -52,9 +53,9 @@ def process(
 
 
 def process_pdf(
-        in_path: str,
-        out_path: str,
-        tmp_dir: str,
+        in_path: Path,
+        out_path: Path,
+        tmp_dir: Path,
         textractor: Textractor,
         confidence_threshold: float,
         use_aggressive_strategy: bool,

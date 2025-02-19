@@ -19,7 +19,7 @@ def load_target(settings: ScriptSettings):
         return S3AssetTarget(
             s3_bucket=s3.Bucket(settings.output_s3_bucket),
             s3_prefix=settings.output_s3_prefix,
-            output_path_fn=lambda filename: Path(sys.path[0], "tmp", "new_" + filename),
+            tmp_dir=Path(settings.tmp_path)
         )
     elif settings.output_type == 'path':
         return FileAssetTarget(
@@ -31,11 +31,11 @@ def load_target(settings: ScriptSettings):
 
 
 def load_source(settings: ScriptSettings, target: AssetTarget):
-    if settings.input_type == 's3':
-        ignore_filenames = target.existing_filenames()
-        print("Found {} existing objects in output path.".format(len(ignore_filenames)))
+    if settings.input_skip_existing:
+        skip_filenames = target.existing_filenames()
+        print("Found {} existing objects in output path.".format(len(skip_filenames)))
     else:
-        ignore_filenames = []
+        skip_filenames = []
 
     if settings.input_type == "s3":
         s3_session = boto3.Session(profile_name=settings.input_aws_profile)
@@ -45,13 +45,14 @@ def load_source(settings: ScriptSettings, target: AssetTarget):
             s3_bucket=s3.Bucket(settings.input_s3_bucket),
             s3_prefix=settings.input_s3_prefix,
             allow_override=False,
-            input_path_fn=lambda filename: Path(sys.path[0], "tmp", filename),
-            ignore_filenames=ignore_filenames
+            skip_filenames=skip_filenames,
+            tmp_dir=Path(settings.tmp_path)
         )
     elif settings.input_type == "path":
         return FileAssetSource(
             in_path=Path(settings.input_path),
-            ignore_filenames=ignore_filenames
+            skip_filenames=skip_filenames,
+            tmp_dir=Path(settings.tmp_path)
         )
     else:
         print("No input type specified.")
@@ -66,16 +67,16 @@ def main():
     source = load_source(settings, target)
 
     for asset_item in source.iterator():
+        os.makedirs(asset_item.tmp_path, exist_ok=True)
         asset_item.load()
         out_path = target.local_path(asset_item)
-        tmp_dir = os.path.join(settings.tmp_path, asset_item.filename)
 
         print()
         print(asset_item.filename)
         ocr.process(
-            str(asset_item.local_path),
-            str(out_path),
-            tmp_dir,
+            asset_item.local_path,
+            out_path,
+            asset_item.tmp_path,
             extractor.textract_client,
             settings.confidence_threshold,
             settings.use_aggressive_strategy,
@@ -84,7 +85,7 @@ def main():
         target.save(asset_item)
 
         if settings.cleanup_tmp_files:
-            shutil.rmtree(tmp_dir)
+            shutil.rmtree(asset_item.tmp_path)
 
 
 if __name__ == '__main__':

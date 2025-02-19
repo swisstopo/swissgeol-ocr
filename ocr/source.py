@@ -2,7 +2,6 @@ import os
 from collections.abc import Iterator
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Callable
 from pathlib import Path
 
 

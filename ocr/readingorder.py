@@ -1,9 +1,9 @@
-import fitz
+import pymupdf
 from trp import Line
 
 
 class TextWord:
-    def __init__(self, text: str, derotated_rect: fitz.Rect, orientation: float):
+    def __init__(self, text: str, derotated_rect: pymupdf.Rect, orientation: float):
         self.text = text
         self.derotated_rect = derotated_rect
         self.orientation = orientation
@@ -15,7 +15,7 @@ class TextWord:
 
 
 class TextLine:
-    def __init__(self, derotated_rect: fitz.Rect, orientation: float, rect: fitz.Rect, text: str, confidence: float, words: list[TextWord]):
+    def __init__(self, derotated_rect: pymupdf.Rect, orientation: float, rect: pymupdf.Rect, text: str, confidence: float, words: list[TextWord]):
         self.text = text
         self.orientation = orientation
         self.derotated_rect = derotated_rect
@@ -24,7 +24,7 @@ class TextLine:
         self.words = words
 
     @staticmethod
-    def from_textract(line: Line, orientation: float, page_height: float, transform: fitz.Matrix):
+    def from_textract(line: Line, orientation: float, page_height: float, transform: pymupdf.Matrix):
         """
 
         :param line:
@@ -37,7 +37,7 @@ class TextLine:
         derotated_rect, orientation = derotator.derotate(line.geometry)
 
         bbox = line.geometry.boundingBox
-        textract_rect = fitz.Rect(bbox.left, bbox.top, bbox.left + bbox.width,
+        textract_rect = pymupdf.Rect(bbox.left, bbox.top, bbox.left + bbox.width,
                                   bbox.top + bbox.height)
         rect = textract_rect * transform
 
@@ -56,13 +56,13 @@ class ReadingOrderBlock:
         self.left = min([line.rect.x0 for line in lines])
         self.bottom = max([line.rect.y1 for line in lines])
         self.right = max([line.rect.x1 for line in lines])
-        self.rect = fitz.Rect(self.left, self.top, self.right, self.bottom)
+        self.rect = pymupdf.Rect(self.left, self.top, self.right, self.bottom)
         self.sort_key = self.top + self.left
 
 
 def overlaps(line, line2) -> bool:
     vertical_margin = 15
-    ref_rect = fitz.Rect(line.rect.x0, line.rect.y0 - vertical_margin, line.rect.x1, line.rect.y1 + vertical_margin)
+    ref_rect = pymupdf.Rect(line.rect.x0, line.rect.y0 - vertical_margin, line.rect.x1, line.rect.y1 + vertical_margin)
     return ref_rect.intersects(line2.rect)
 
 
@@ -163,20 +163,20 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
 
 
 class GeometryDerotator:
-    def __init__(self, orientation: float, transform: fitz.Matrix, page_height: float):
+    def __init__(self, orientation: float, transform: pymupdf.Matrix, page_height: float):
         self.orientation = orientation
         self.transform = transform
         self.page_height = page_height
 
-    def derotate(self, geometry) -> (fitz.Rect, float):
+    def derotate(self, geometry) -> (pymupdf.Rect, float):
         polygon = geometry.polygon
         orientation = self.orientation
 
-        top_left = fitz.Point(polygon[0].x, polygon[0].y) * self.transform
-        top_right = fitz.Point(polygon[1].x, polygon[1].y) * self.transform
-        bottom_left = fitz.Point(polygon[-1].x, polygon[-1].y) * self.transform
-        bottom_right = fitz.Point(polygon[-2].x, polygon[-2].y) * self.transform
-        quad = fitz.Quad(top_left, top_right, bottom_left, bottom_right)
+        top_left = pymupdf.Point(polygon[0].x, polygon[0].y) * self.transform
+        top_right = pymupdf.Point(polygon[1].x, polygon[1].y) * self.transform
+        bottom_left = pymupdf.Point(polygon[-1].x, polygon[-1].y) * self.transform
+        bottom_right = pymupdf.Point(polygon[-2].x, polygon[-2].y) * self.transform
+        quad = pymupdf.Quad(top_left, top_right, bottom_left, bottom_right)
 
         closest_multiple_of_90_deg = round(orientation / 90) * 90
         diff_to_multiple_of_90_deg = orientation - closest_multiple_of_90_deg
@@ -188,8 +188,8 @@ class GeometryDerotator:
 
         # rotate around the bottom-left corner of the page
         derotated_rect = quad.morph(
-            fitz.Point(0, self.page_height),
-            fitz.Matrix(1, 1).prerotate(-orientation)
+            pymupdf.Point(0, self.page_height),
+            pymupdf.Matrix(1, 1).prerotate(-orientation)
         ).rect
 
         if abs(diff_to_multiple_of_90_deg) < 25:
@@ -198,6 +198,6 @@ class GeometryDerotator:
             right_x = (derotated_rect.top_right.x + derotated_rect.bottom_right.x) / 2
             line_height = top_left.distance_to(bottom_left)
             # use a "straightened" version of the rect that was derotated with a multiple of 90 degrees
-            derotated_rect = fitz.Rect(left_x, middle_y - line_height / 2, right_x, middle_y + line_height / 2)
+            derotated_rect = pymupdf.Rect(left_x, middle_y - line_height / 2, right_x, middle_y + line_height / 2)
 
         return derotated_rect, orientation

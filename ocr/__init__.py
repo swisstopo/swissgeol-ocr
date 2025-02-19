@@ -1,14 +1,15 @@
 import os
 import subprocess
 
-import fitz
+import pymupdf
+from pymupdf import mupdf
+from pymupdf.mupdf import PDF_ENCRYPT_KEEP
 from pathlib import Path
 from mypy_boto3_textract import TextractClient as Textractor
-from pymupdf.mupdf import PDF_ENCRYPT_KEEP
 
-from ocr.crop import crop_images
+from ocr.crop import crop_images, replace_jpx_images
 from ocr.resize import resize_page
-from ocr.util import process_page, clean_old_ocr, new_ocr_needed, draw_ocr_text_page, clean_old_ocr_aggressive
+from ocr.util import process_page, clean_old_ocr, is_digitally_born, draw_ocr_text_page, clean_old_ocr_aggressive
 
 
 def process(
@@ -28,9 +29,9 @@ def process(
             confidence_threshold,
             use_aggressive_strategy
         )
-    except ValueError as e:
+    except (ValueError, mupdf.FzErrorArgument, mupdf.FzErrorFormat) as e:
         gs_preprocess_path = tmp_dir / "gs.pdf"
-        print(f"Encountered ValueError: {e}. Trying Ghostscript preprocessing.")
+        print(f"Encountered {e.__class__.__name__}: {e}. Trying Ghostscript preprocessing.")
         subprocess.call([
             "gs",
             "-sDEVICE=pdfwrite",
@@ -62,30 +63,43 @@ def process_pdf(
 ):
     tmp_out_path = os.path.join(tmp_dir, f"output.incremental.pdf")
 
-    in_doc = fitz.open(in_path)
-    out_doc = fitz.open(in_path)
+    in_doc = pymupdf.open(in_path)
+    out_doc = pymupdf.open(in_path)
 
     os.makedirs(tmp_dir, exist_ok=True)
 
     in_page_count = in_doc.page_count
-    print(f"{in_page_count} pages")
 
     out_doc.save(tmp_out_path, garbage=3, deflate=True)
     out_doc.close()
-    out_doc = fitz.open(tmp_out_path)
+    out_doc = pymupdf.open(tmp_out_path)
     for page_index, new_page in enumerate(iter(in_doc)):
         page_number = page_index + 1
-        print(f"Page {page_number}")
+        print(f"{os.path.basename(in_path)}, page {page_number}/{in_page_count}")
 
-        new_page = resize_page(in_doc, out_doc, page_index)
-        crop_images(new_page, out_doc)
+        digitally_born = is_digitally_born(in_doc[page_index])
+
+        if not digitally_born:
+            # We reload the page using doc[page_index] every time before calling page.get_image_info(), instead of
+            # re-using the same page object, as the latter can lead to strange behaviour (xref=0 and outdated values
+            # from the second page.get_image_info() call). This is because the result of the page.get_image_info()
+            # call is cached on the Page object, and this cache is not autmoatically cleared when modifying some of the
+            # images (e.g. calling page.replace_image()). See e.g.
+            # https://github.com/pymupdf/PyMuPDF/blob/0a9c2e85c70da1991c6336fe9760bf844d06a7af/src/utils.py#L829
+            resize_page(in_doc, out_doc, page_index)
+            replace_jpx_images(out_doc, page_index)
+            crop_images(out_doc, page_index)
+
+        new_page = out_doc[page_index]
+
         if use_aggressive_strategy:
             ignore_rects = clean_old_ocr_aggressive(new_page)
         else:
-            if new_ocr_needed(new_page):
+            if not digitally_born:
                 clean_old_ocr(new_page)
                 ignore_rects = []
             else:
+                print(" Skipping digitally-born page.")
                 continue
         tmp_path_prefix = os.path.join(tmp_dir, f"page{page_number}")
         text_layer_path = os.path.join(tmp_dir, f"page{page_number}.pdf")
@@ -95,14 +109,14 @@ def process_pdf(
 
     out_doc.close()
     in_doc.close()
-    out_doc = fitz.open(tmp_out_path)
-    out_doc.save(out_path, garbage=3, deflate=True)
+    out_doc = pymupdf.open(tmp_out_path)
+    out_doc.save(out_path, garbage=3, deflate=True, use_objstms=1)
     out_doc.close()
 
     # Verify that we can read the written document, and that it still has the same number of pages. Some corrupt input
     # documents might lead to an empty or to a corrupt output document, sometimes even without throwing an error. (See
     # LGD-283.) This check should detect such cases.
-    doc = fitz.open(out_path)
+    doc = pymupdf.open(out_path)
     out_page_count = doc.page_count
     if in_page_count != out_page_count:
         raise ValueError(

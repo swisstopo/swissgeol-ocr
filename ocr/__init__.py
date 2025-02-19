@@ -84,8 +84,8 @@ def process_pdf(
             # re-using the same page object, as the latter can lead to strange behaviour (xref=0 and outdated values
             # from the second page.get_image_info() call). This is because the result of the page.get_image_info()
             # call is cached on the Page object, and this cache is not autmoatically cleared when modifying some of the
-            # images (e.g. calling page.replace_image()). See e.g.
-            # https://github.com/pymupdf/PyMuPDF/blob/0a9c2e85c70da1991c6336fe9760bf844d06a7af/src/utils.py#L829
+            # images (e.g. calling page.replace_image()). This has been reported as a bug on the PyMuPDF GitHub repo:
+            # https://github.com/pymupdf/PyMuPDF/issues/4303
             resize_page(in_doc, out_doc, page_index)
             replace_jpx_images(out_doc, page_index)
             crop_images(out_doc, page_index)

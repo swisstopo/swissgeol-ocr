@@ -6,6 +6,7 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfgen.textobject import PDFTextObject
 
 from ocr.applyocr import OCR
+from ocr.crop import downscale_images_x2
 from ocr.readingorder import TextLine, TextWord
 
 
@@ -26,19 +27,35 @@ def process_page(
     textract_doc = pymupdf.Document()
     textract_doc.insert_pdf(doc, from_page=page.number, to_page=page.number)
     textract_doc_path = OCR.tmp_file_path(tmp_path_prefix, "pdf")
-    textract_doc.save(textract_doc_path)
 
-    page_ocr = OCR(
-        textractor=extractor,
-        confidence_threshold=confidence_threshold,
-        textract_doc_path=textract_doc_path,
-        ignore_rects=ignore_rects,
-        tmp_path_prefix=tmp_path_prefix
-    )
-    lines_to_draw = page_ocr.apply_ocr(clip_rect=page.rect)
-    os.remove(textract_doc_path)
-    print("  {} new lines found".format(len(lines_to_draw)))
-    return lines_to_draw
+    ten_mb = 10 * 1024 * 1024  # 10 MB
+    textract_doc.save(textract_doc_path, deflate=True, garbage=3, use_objstms=1)
+
+    for iteration in range(10):
+        page_size = os.path.getsize(textract_doc_path)
+        if page_size < ten_mb:
+            break
+        print(f"  Page size is {page_size / 1024 / 1024:.2f} MB, trying to downscale images.")
+        # We only reduce the image resolution in the temporary PDF file that is used for AWS Textact, not in the
+        # original PDF file.
+        downscale_images_x2(textract_doc, page_index=0)
+        textract_doc.save(textract_doc_path, deflate=True, garbage=3, use_objstms=1)
+
+    if os.path.getsize(textract_doc_path) < ten_mb:
+        page_ocr = OCR(
+            textractor=extractor,
+            confidence_threshold=confidence_threshold,
+            textract_doc_path=textract_doc_path,
+            ignore_rects=ignore_rects,
+            tmp_path_prefix=tmp_path_prefix
+        )
+        lines_to_draw = page_ocr.apply_ocr(clip_rect=page.rect)
+        os.remove(textract_doc_path)
+        print("  {} new lines found".format(len(lines_to_draw)))
+        return lines_to_draw
+    else:
+        print("  Could not reduce page size to below 10MB. Skipping page.")
+        return []
 
 
 def draw_ocr_word(

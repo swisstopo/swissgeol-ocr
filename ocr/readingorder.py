@@ -68,7 +68,7 @@ class ReadingOrderBlock:
 
     def is_below(self, other_block: "ReadingOrderBlock") -> bool:
         return any(
-            line.rect.y0 > other_block.bottom and line.rect.y0 < other_block.right and line.rect.y1 > other_block.left
+            line.rect.y0 > other_block.bottom and line.rect.x0 < other_block.right and line.rect.x1 > other_block.left
             for line in self.lines
         )
 

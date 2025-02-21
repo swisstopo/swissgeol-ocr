@@ -1,3 +1,5 @@
+import dataclasses
+
 import pymupdf
 from trp import Line
 
@@ -63,112 +65,72 @@ class ReadingOrderBlock:
     def text(self) -> str:
         return " ".join(line.text for line in self.lines)
 
-    def continuation_distance_from(self, point: pymupdf.Point) -> float | None:
-        return min([point.distance_to(line.rect.top_left) for line in self.lines])
 
-    def is_below(self, other_block: "ReadingOrderBlock") -> bool:
-        return any(
-            line.rect.y0 > other_block.bottom and line.rect.x0 < other_block.right and line.rect.x1 > other_block.left
-            for line in self.lines
-        )
+class TextLineReadingOrder:
+    def __init__(self, line: TextLine):
+        self.line = line
 
+    @property
+    def x_middle(self) -> float:
+        return (self.line.rect.x0 + self.line.rect.x1) / 2
 
-def overlaps(line, line2) -> bool:
-    vertical_margin = 15
-    ref_rect = pymupdf.Rect(line.rect.x0, line.rect.y0 - vertical_margin, line.rect.x1, line.rect.y1 + vertical_margin)
-    return ref_rect.intersects(line2.rect)
+    @property
+    def y_middle(self) -> float:
+        return (self.line.rect.y0 + self.line.rect.y1) / 2
 
+    @property
+    def top_middle(self):
+        return pymupdf.Point(self.x_middle, self.line.rect.y0)
 
-def adjacent_lines(lines: list[TextLine]) -> list[set[int]]:
-    result = [set() for _ in lines]
-    for index, line in enumerate(lines):
-        for index2, line2 in enumerate(lines):
-            if index2 > index:
-                if overlaps(line, line2):
-                    result[index].add(index2)
-                    result[index2].add(index)
-    return result
+    @property
+    def bottom_middle(self):
+        return pymupdf.Point(self.x_middle, self.line.rect.y1)
 
+    @property
+    def sort_key(self):
+        return self.line.rect.x0 + self.line.rect.y0
 
-def apply_transitive_closure(data: list[set[int]]) -> bool:
-    found_new_relation = False
-    for index, adjacent_indices in enumerate(data):
-        new_adjacent_indices = set()
-        for adjacent_index in adjacent_indices:
-            new_adjacent_indices.update(
-                new_index
-                for new_index in data[adjacent_index]
-                if new_index not in data[index]
-            )
+    def needs_to_come_before(self, other: "TextLineReadingOrder") -> bool:
+        return self.line.rect.x0 < other.x_middle and self.line.rect.y0 < other.y_middle
 
-        for new_adjacent_index in new_adjacent_indices:
-            data[index].add(new_adjacent_index)
-            data[new_adjacent_index].add(index)
-            found_new_relation = True
-    return found_new_relation
-
-
-def select_blocks_from_position(
-        last_block: ReadingOrderBlock | None,
-        remaining_blocks: set[ReadingOrderBlock]
-) -> (list[ReadingOrderBlock], set[ReadingOrderBlock]):
-    if last_block is None:
-        next_block = min(remaining_blocks, key=lambda block: block.sort_key)
-    else:
-        below_blocks = {block for block in remaining_blocks if block.is_below(last_block)}
-        if len(below_blocks) == 0:
-            return [], remaining_blocks
-        else:
-            next_block = min(below_blocks, key=lambda block: block.continuation_distance_from(last_block.rect.bottom_left))
-    remaining_blocks.remove(next_block)
-    blocks_above_next_block = {
-        block
-        for block in remaining_blocks
-        if block.bottom < next_block.top and block.left < next_block.right
-    }
-    selected_blocks = select_blocks(blocks_above_next_block)
-    remaining_blocks.difference_update(selected_blocks)
-    selected_blocks.append(next_block)
-    return selected_blocks, remaining_blocks
-
-
-def select_blocks(blocks: set[ReadingOrderBlock]) -> list[ReadingOrderBlock]:
-    remaining_blocks = blocks.copy()
-    sorted_blocks = []
-
-    while len(remaining_blocks) > 0:
-        # Select a first block, then try to read from top to bottom, but always ensure that any text that is above a
-        # newly selected block, comes first.
-        new_selected_blocks, remaining_blocks = select_blocks_from_position(None, remaining_blocks)
-
-        while len(new_selected_blocks) > 0:
-            last_selected_block = new_selected_blocks[-1]
-            sorted_blocks.extend(new_selected_blocks)
-
-            new_selected_blocks, remaining_blocks = select_blocks_from_position(last_selected_block, remaining_blocks)
-
-    return sorted_blocks
-
+    def distance_after(self, other: "TextLineReadingOrder") -> float:
+        left = self.line.rect.top_left.distance_to(other.line.rect.bottom_left)
+        middle = self.top_middle.distance_to(other.bottom_middle)
+        right = self.line.rect.top_right.distance_to(other.line.rect.bottom_right)
+        return min(left, middle, right)
 
 def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
-    data = adjacent_lines(text_lines)
+    remaining_lines = set([TextLineReadingOrder(line) for line in text_lines])
+    blocks = []
+    current_block = []
+    while len(remaining_lines) > 0:
+        current_line = min(remaining_lines, key=lambda line: line.sort_key)
+        remaining_lines.remove(current_line)
 
-    while apply_transitive_closure(data):
-        # apply transitive closure until the method returns false (nothing changes anymore; closure reached)
-        pass
+        must_come_before = {line for line in remaining_lines if line.needs_to_come_before(current_line)}
+        if must_come_before:
+            remaining_lines.add(current_line)
+            current_line = min(must_come_before, key=lambda line: line.sort_key)
+            remaining_lines.remove(current_line)
 
-    blocks: list[ReadingOrderBlock] = []
-    remaining_indices = {index for index, _ in enumerate(data)}
-    for index, adjacent_indices in enumerate(data):
-        if index in remaining_indices:
-            selected_indices = adjacent_indices
-            selected_indices.add(index)
-            blocks.append(ReadingOrderBlock(
-                [text_lines[selected_index] for selected_index in sorted(list(selected_indices))]
-            ))
-            remaining_indices.difference_update(selected_indices)
+        current_block.append(current_line.line)
 
-    return select_blocks(set(blocks))
+        while len(remaining_lines) > 0:
+            # TODO: deal with lines that are split into several TextLine objects, e.g. 33120.pdf p.9
+            following = {line for line in remaining_lines if line.distance_after(current_line) < 20}
+            if following:
+                current_line = min(following, key=lambda line: line.sort_key)
+                remaining_lines.remove(current_line)
+                if any(line.needs_to_come_before(current_line) for line in remaining_lines):
+                    remaining_lines.add(current_line)
+                    break
+                current_block.append(current_line.line)
+            else:
+                break
+
+        blocks.append(ReadingOrderBlock(current_block))
+        current_block = []
+    return blocks
 
 
 class GeometryDerotator:

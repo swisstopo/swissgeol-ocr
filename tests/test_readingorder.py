@@ -230,7 +230,6 @@ def test_sort_lines_with_depths_and_paragraph(interval_column_paragraph_doc):
 
     expected_text = (
         "10-20m "
-        "1 "  # even better would be to have this page number read first, but this is ok for now
         "brauner, siltigen bis stark siltigen Feinsand "
         "mit wechselndem Grobsand-Kiesanteil (vereinzelt bis reichlich) "
         "brauner, siltigen bis stark siltigen Feinsand mit wechselndem Grobsand-Kiesanteil "
@@ -239,7 +238,9 @@ def test_sort_lines_with_depths_and_paragraph(interval_column_paragraph_doc):
         "Die tonig-siltigen Schwemmlehme haben eine relativ niedrige "
         "Scherfestigkeit und eine hohe Setzungsempfindlichkeit. "
         "Die sandigen Schwemmablagerungen haben wesentlich bessere Eigenschaften. "
-        "30-40m 40-50m Humus Sauberer Kies mit viel Sand"
+        "30-40m 40-50m "
+        "1 "  # even better would be to have this page number read first, but this is ok for now
+        "Humus Sauberer Kies mit viel Sand"
     )
 
     assert extracted_text == expected_text, "Extracted text does not match expected reading order."

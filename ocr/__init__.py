@@ -75,8 +75,6 @@ def process_pdf(
     out_doc = pymupdf.open(tmp_out_path)
     for page_index, new_page in enumerate(iter(in_doc)):
         page_number = page_index + 1
-        if page_number != 9:
-            continue
         print(f"{os.path.basename(in_path)}, page {page_number}/{in_page_count}")
 
         digitally_born = is_digitally_born(in_doc[page_index])

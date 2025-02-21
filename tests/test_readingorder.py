@@ -28,6 +28,7 @@ def two_columns_doc(pdf_dir):
         "Die Landesgeologie von swisstopo ist das Kompetenzzentrum des Bundes für die Erhebung, Analyse, Lagerung "
         "und Bereitstellung geologischer Daten von nationalem Interesse."
     ))
+    # Draw bounding boxes
     page.draw_rect(rect_left, color = (1,0,0), width=1)
     page.draw_rect(rect_right,color =(1,0,0), width=1)
 
@@ -102,7 +103,7 @@ def single_column_with_sidenotes_doc(pdf_dir):
     sidenote_rect_1 = pymupdf.Rect(270, 30, 370, 100)
     sidenote_rect_2 = pymupdf.Rect(270, 150, 370, 250)
 
-    # main text
+    # Main text
     page.insert_textbox(main_text_rect, (
         "Die Landesgeologie von swisstopo ist das Kompetenzzentrum des Bundes für die Erhebung, Analyse, Lagerung "
         "und Bereitstellung geologischer Daten von nationalem Interesse. Sie erarbeitet geologische Grundlagendaten, "
@@ -111,7 +112,7 @@ def single_column_with_sidenotes_doc(pdf_dir):
         "geotechnischen Charakterisierung einer Tonformation (Opalinus-Ton)."
     ))
 
-    # side notes
+    # Side notes
     page.insert_textbox(sidenote_rect_1, "Hinweis: Swisstopo ist das Bundesamt für Landestopografie.")
     page.insert_textbox(sidenote_rect_2, "Hinweis 2: Das Mont Terri Forschungslabor is in St-Ursanne.")
 
@@ -149,13 +150,13 @@ def test_sort_lines_with_sidenotes(single_column_with_sidenotes_doc):
 
     assert extracted_text == expected_text, "Extracted text does not match expected reading order."
 
-    # assert sort_key order (y-coordinate first, then x-coordinate)
+    # Assert sort_key order (y-coordinate first, then x-coordinate)
     sort_keys = [block.sort_key for block in sorted_blocks]
     assert sort_keys == sorted(sort_keys), "Blocks are not sorted correctly by reading order."
 
 @pytest.fixture
 def interval_column_paragraph_doc(pdf_dir):
-    #document with more complex layout
+    # Document with more complex layout
     doc = pymupdf.Document()
     page = doc.new_page()
 
@@ -164,7 +165,7 @@ def interval_column_paragraph_doc(pdf_dir):
     right_col_1 = pymupdf.Rect(120, 0, 400, 100)  # Descriptions
     paragraph_rect = pymupdf.Rect(0, 120, 400, 200)  # Paragraph
 
-    # second section (below the paragraph)
+    # Second section (below the paragraph)
     left_col_2 = pymupdf.Rect(0, 220, 100, 320)  # Depths
     right_col_2 = pymupdf.Rect(120, 220, 400, 320)  # Descriptions
 

@@ -154,42 +154,60 @@ def test_sort_lines_with_sidenotes(single_column_with_sidenotes_doc):
     sort_keys = [block.sort_key for block in sorted_blocks]
     assert sort_keys == sorted(sort_keys), "Blocks are not sorted correctly by reading order."
 
+def draw(page: pymupdf.Page, text: str, rect: pymupdf.Rect):
+    page.insert_textbox(rect, text)
+    page.draw_rect(rect, color=(0, 0, 1))
+
+
 @pytest.fixture
 def interval_column_paragraph_doc(pdf_dir):
-    # Document with more complex layout
+    # Document with more complex layout, loosely inspired by Asset 33120 page 9
     doc = pymupdf.Document()
     page = doc.new_page()
 
+    # Page number
+    draw(
+        page,
+        "1",
+        pymupdf.Rect(300, 0, 310, 30)
+    )
+
     # First section
-    left_col_1 = pymupdf.Rect(0, 0, 100, 100)  # Depths
-    right_col_1 = pymupdf.Rect(120, 0, 400, 100)  # Descriptions
-    paragraph_rect = pymupdf.Rect(0, 120, 400, 200)  # Paragraph
+    draw(
+        page,
+        "10-20m",
+        pymupdf.Rect(0, 40, 60, 120)
+    )
+    draw(
+        page,
+        "brauner, siltigen bis stark siltigen Feinsand mit wechselndem Grobsand-Kiesanteil (vereinzelt bis "
+        "reichlich)\n"
+        "brauner, siltigen bis stark siltigen Feinsand mit wechselndem Grobsand-Kiesanteil",
+        pymupdf.Rect(70, 40, 300, 120)
+    )
+    draw(
+        page,
+        "20-30m",
+        pymupdf.Rect(0, 125, 60, 150)
+    )
+    draw(
+        page,
+        "brauner, tonigen Kies mit viel Sand",
+        pymupdf.Rect(70, 125, 300, 150)
+    )
 
-    # Second section (below the paragraph)
-    left_col_2 = pymupdf.Rect(0, 220, 100, 320)  # Depths
-    right_col_2 = pymupdf.Rect(120, 220, 400, 320)  # Descriptions
-
-    page.insert_textbox(left_col_1, "10-20m\n20-30m")
-    page.insert_textbox(right_col_1, "brauner, tonigen Kies mit viel Sand\n"
-                                     "brauner, siltigen bis stark siltigen Feinsand "
-                                     "mit wechselndem Grobsand-Kiesanteil (vereinzelt bis reichlich)")
-
-    # Insert paragraph
-    page.insert_textbox(paragraph_rect, (
+    # Paragraph
+    draw(
+        page,
         "Die tonig-siltigen Schwemmlehme haben eine relativ niedrige "
         "Scherfestigkeit und eine hohe Setzungsempfindlichkeit. "
-        "Die sandigen Schwemmablagerungen haben wesentlich bessere Eigenschaften."
-    ))
+        "Die sandigen Schwemmablagerungen haben wesentlich bessere Eigenschaften.",
+        pymupdf.Rect(0, 155, 450, 210)
+    )
 
     # Insert second set of depths + descriptions
-    page.insert_textbox(left_col_2, "30-40m\n40-50m", fontsize=15)
-    page.insert_textbox(right_col_2, "Humus\nSauberer Kies mit viel Sand", fontsize=15)
-
-    page.draw_rect(left_col_1, color=(0, 0, 1))
-    page.draw_rect(right_col_1, color=(1, 0, 0))
-    page.draw_rect(paragraph_rect, color=(0, 1, 0))
-    page.draw_rect(left_col_2, color=(0, 0, 1))
-    page.draw_rect(right_col_2, color=(1, 0, 0))
+    draw(page, "30-40m\n40-50m", pymupdf.Rect(0, 215, 100, 360))
+    draw(page, "Humus\nSauberer Kies mit viel Sand", pymupdf.Rect(150, 215, 420, 360))
 
     if pdf_dir:
         doc.save(pdf_dir / "interval_column_paragraph_doc.pdf")
@@ -211,10 +229,13 @@ def test_sort_lines_with_depths_and_paragraph(interval_column_paragraph_doc):
     extracted_text = " ".join([line.text for block in sorted_blocks for line in block.lines])
 
     expected_text = (
-        "10-20m 20-30m "
-        "brauner, tonigen Kies mit viel Sand "
+        "10-20m "
+        "1 "  # even better would be to have this page number read first, but this is ok for now
         "brauner, siltigen bis stark siltigen Feinsand "
         "mit wechselndem Grobsand-Kiesanteil (vereinzelt bis reichlich) "
+        "brauner, siltigen bis stark siltigen Feinsand mit wechselndem Grobsand-Kiesanteil "
+        "20-30m "
+        "brauner, tonigen Kies mit viel Sand "
         "Die tonig-siltigen Schwemmlehme haben eine relativ niedrige "
         "Scherfestigkeit und eine hohe Setzungsempfindlichkeit. "
         "Die sandigen Schwemmablagerungen haben wesentlich bessere Eigenschaften. "

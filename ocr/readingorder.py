@@ -57,7 +57,20 @@ class ReadingOrderBlock:
         self.bottom = max([line.rect.y1 for line in lines])
         self.right = max([line.rect.x1 for line in lines])
         self.rect = pymupdf.Rect(self.left, self.top, self.right, self.bottom)
-        self.sort_key = self.top + self.left
+        self.sort_key = min([line.rect.x0 + line.rect.y0 for line in lines])
+
+    @property
+    def text(self) -> str:
+        return " ".join(line.text for line in self.lines)
+
+    def continuation_distance_from(self, point: pymupdf.Point) -> float | None:
+        return min([point.distance_to(line.rect.top_left) for line in self.lines])
+
+    def is_below(self, other_block: "ReadingOrderBlock") -> bool:
+        return any(
+            line.rect.y0 > other_block.bottom and line.rect.y0 < other_block.right and line.rect.y1 > other_block.left
+            for line in self.lines
+        )
 
 
 def overlaps(line, line2) -> bool:
@@ -102,12 +115,11 @@ def select_blocks_from_position(
     if last_block is None:
         next_block = min(remaining_blocks, key=lambda block: block.sort_key)
     else:
-        below_blocks = {block for block in remaining_blocks if block.top > last_block.bottom}
+        below_blocks = {block for block in remaining_blocks if block.is_below(last_block)}
         if len(below_blocks) == 0:
             return [], remaining_blocks
         else:
-            next_block = min(below_blocks, key=lambda block: block.rect.top_left.distance_to(last_block.rect.bottom_left))
-
+            next_block = min(below_blocks, key=lambda block: block.continuation_distance_from(last_block.rect.bottom_left))
     remaining_blocks.remove(next_block)
     blocks_above_next_block = {
         block
@@ -156,10 +168,7 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
             ))
             remaining_indices.difference_update(selected_indices)
 
-    blocks.sort(key=lambda block: block.sort_key)
-
-    sorted_blocks = select_blocks(set(blocks))
-    return sorted_blocks
+    return select_blocks(set(blocks))
 
 
 class GeometryDerotator:

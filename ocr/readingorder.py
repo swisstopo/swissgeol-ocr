@@ -102,8 +102,8 @@ class TextLineReadingOrder:
 def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
     remaining_lines = set([TextLineReadingOrder(line) for line in text_lines])
     blocks = []
-    current_block = []
-    while len(remaining_lines) > 0:
+
+    while remaining_lines:
         current_line = min(remaining_lines, key=lambda line: line.sort_key)
         remaining_lines.remove(current_line)
 
@@ -113,23 +113,24 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
             current_line = min(must_come_before, key=lambda line: line.sort_key)
             remaining_lines.remove(current_line)
 
-        current_block.append(current_line.line)
+        current_block = [current_line.line]
 
-        while len(remaining_lines) > 0:
+        while remaining_lines:
             # TODO: deal with lines that are split into several TextLine objects, e.g. 33120.pdf p.9
             following = {line for line in remaining_lines if line.distance_after(current_line) < 20}
-            if following:
-                current_line = min(following, key=lambda line: line.sort_key)
-                remaining_lines.remove(current_line)
-                if any(line.needs_to_come_before(current_line) for line in remaining_lines):
-                    remaining_lines.add(current_line)
-                    break
-                current_block.append(current_line.line)
-            else:
+
+            if not following:
                 break
 
+            current_line  = min(following, key=lambda line: line.sort_key)
+            remaining_lines.remove(current_line )
+            if any(line.needs_to_come_before(current_line ) for line in remaining_lines):
+                remaining_lines.add(current_line )
+                break
+
+            current_block.append(current_line .line)
+
         blocks.append(ReadingOrderBlock(current_block))
-        current_block = []
     return blocks
 
 

@@ -199,7 +199,6 @@ def is_digitally_born(page: pymupdf.Page) -> bool:
     for boxType, rectangle in bboxes:
         # Empty rectangle that should be ignored occurs sometimes, e.g. SwissGeol 44191 page 37.
         if (boxType == "fill-text" or boxType == "stroke-text") and not pymupdf.Rect(rectangle).is_empty:
-            print("  skipped")
             return True
     return False
 

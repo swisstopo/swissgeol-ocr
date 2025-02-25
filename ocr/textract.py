@@ -106,7 +106,7 @@ def call_textract(extractor: Textractor, tmp_file_path: Path) -> t1.Document | N
     except botocore.exceptions.SSLError:
         print("Encountered SSLError from Textract. Page might require more than 10MB memory. Skipping page.")
         return None
-    except extractor.textract_client.exceptions.UnsupportedDocumentException:  # 1430.pdf page 18
+    except extractor.exceptions.UnsupportedDocumentException:  # 1430.pdf page 18
         print("Encountered UnsupportedDocumentException from Textract. Page might have excessive width or height. Skipping page.")
         return None
 

@@ -102,7 +102,8 @@ def draw_ocr_word(
 def draw_ocr_text_page(
         page: pymupdf.Page,
         text_layer_path: str,
-        lines: list[TextLine]
+        lines: list[TextLine],
+        visible: bool=False
 ):
     """
     Draw hidden OCR text on the page.
@@ -123,7 +124,8 @@ def draw_ocr_text_page(
     c.saveState()
     current_orientation = 0
     text = c.beginText(0, 0)
-    text.setTextRenderMode(3)
+    if not visible:
+        text.setTextRenderMode(3)
 
     for line in lines:
         if line.orientation != current_orientation:

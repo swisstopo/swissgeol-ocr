@@ -130,8 +130,10 @@ def downscale_images_x2(doc: pymupdf.Document, page_index: int):
 
             img = _pixmap_from_xref(doc, xref)
             img.shrink(1)  # reduce width and height by a factor of 2^1 = 2
-            if img:
-                page.replace_image(xref, stream=img.tobytes(ext, jpg_quality=85))
+            page.replace_image(xref, stream=img.tobytes(ext, jpg_quality=85))
+            # Without clean_contents() after replace_image(), we get issues (changing xref values, increasing PDF file
+            # size) with certain input PDFs, e.g. deep well AM7RV03900_bp_19960801_Wellenberg-SB1.pdf.
+            page.clean_contents()
         except ValueError:
             print(f"  Encountered ValueError for xref {xref}, skipping downscale_images_x2.")
 

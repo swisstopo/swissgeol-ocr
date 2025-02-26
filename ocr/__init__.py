@@ -59,7 +59,7 @@ class Processor:
             page_number = page_index + 1
             if not self.debug_page or page_number == self.debug_page:
                 print(f"{os.path.basename(in_path)}, page {page_number}/{in_page_count}")
-                self.process_page(in_doc, page_index, out_doc, tmp_out_path, add_debug_page=bool(self.debug_page))
+                self.process_page(in_doc, page_index, out_doc, add_debug_page=bool(self.debug_page))
                 out_doc.saveIncr()
 
         if self.debug_page:
@@ -91,7 +91,6 @@ class Processor:
         in_doc: pymupdf.Document,
         page_index: int,
         out_doc: pymupdf.Document,
-        tmp_out_path: str,
         add_debug_page: bool = False
     ):
         page_number = page_index + 1

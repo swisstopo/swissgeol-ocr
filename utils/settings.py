@@ -35,7 +35,7 @@ class ScriptSettings(SharedSettings):
     input_s3_bucket: str | None = None
     input_s3_prefix: str | None = None
     input_skip_existing: bool
-    input_debug_page: int | None
+    input_debug_page: int | None = None
 
     output_type: Literal['path', 's3']
     output_path: str | None = None

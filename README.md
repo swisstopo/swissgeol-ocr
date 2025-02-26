@@ -68,6 +68,9 @@ For example, run the script as `OCR_PROFILE=assets python -m main` to use the en
 > The API and Script require different configurations.
 > Please ensure that you are using the correct environment variables depending on what you want to execute.
 
+When setting the environment variable `INPUT_DEBUG_PAGE` to a particular page number, the pipeline will only process 
+that page, and additional create a version of the page with only the OCR layer (with visible text).
+
 ### Script Configuration
 
 AWS credentials can be provided using

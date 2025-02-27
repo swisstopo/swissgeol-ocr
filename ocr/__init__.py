@@ -26,7 +26,6 @@ class Processor:
         try:
             self.process_pdf(self.input_path)
         except (ValueError, mupdf.FzErrorArgument, mupdf.FzErrorFormat) as e:
-            exit(1)
             gs_preprocess_path = self.tmp_dir / "gs.pdf"
             print(f"Encountered {e.__class__.__name__}: {e}. Trying Ghostscript preprocessing.")
             subprocess.call([
@@ -67,9 +66,9 @@ class Processor:
         out_doc.close()
         in_doc.close()
 
-        out_doc2 = pymupdf.open(tmp_out_path)
-        out_doc2.save(self.output_path, garbage=3, deflate=True, use_objstms=1)
-        out_doc2.close()
+        out_doc = pymupdf.open(tmp_out_path)
+        out_doc.save(self.output_path, garbage=3, deflate=True, use_objstms=1)
+        out_doc.close()
 
         # Verify that we can read the written document, and that it still has the same number of pages. Some corrupt input
         # documents might lead to an empty or to a corrupt output document, sometimes even without throwing an error. (See

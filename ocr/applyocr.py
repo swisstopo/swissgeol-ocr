@@ -12,7 +12,7 @@ class OCR:
             textractor: Textractor,
             confidence_threshold: float,
             textract_doc_path: Path,
-            ignore_rects: list[pymupdf.Rect],
+            relevant_rects: list[pymupdf.Rect] | None,
             tmp_path_prefix: str
     ):
         self.textractor = textractor
@@ -21,7 +21,7 @@ class OCR:
         self.textract_doc_path = textract_doc_path
         with pymupdf.Document(textract_doc_path) as doc:
             self.page_rect = doc[0].rect
-        self.ignore_rects = ignore_rects
+        self.relevant_rects = relevant_rects
         self.tmp_path_prefix = tmp_path_prefix
 
     @staticmethod
@@ -54,7 +54,7 @@ class OCR:
 
     def apply_vertical_check(self, text_lines: list[TextLine], clip_rect: pymupdf.Rect):
         lines_to_draw, processed_rects, vertical_detected = (
-            get_ocr_lines(text_lines, self.ignore_rects, self.confidence_threshold, detect_vertical=True)
+            get_ocr_lines(text_lines, self.relevant_rects, self.confidence_threshold, detect_vertical=True)
         )
 
         if vertical_detected:
@@ -70,7 +70,7 @@ class OCR:
                     doc.saveIncr()
             vertical_text_lines = self._ocr_text_lines(clip_rect, rotate=90)
             vertical_draw_lines, _, _ = (
-                get_ocr_lines(vertical_text_lines, self.ignore_rects, self.confidence_threshold, detect_vertical=False)
+                get_ocr_lines(vertical_text_lines, self.relevant_rects, self.confidence_threshold, detect_vertical=False)
             )
             lines_to_draw.extend(vertical_draw_lines)
         return lines_to_draw
@@ -96,7 +96,7 @@ class OCR:
 
 def get_ocr_lines(
         text_lines: list[TextLine],
-        ignore_rects: list[pymupdf.Rect],
+        relevant_rects: list[pymupdf.Rect] | None,
         confidence_threshold: float,
         detect_vertical: bool = True
 ) -> (list[TextLine], list[pymupdf.Rect], bool):
@@ -115,7 +115,7 @@ def get_ocr_lines(
             line_confidence_threshold = avg_confidence / 2
 
         for line in reading_order_block.lines:
-            if not any(line.rect.intersects(ignore_rect) for ignore_rect in ignore_rects):
+            if relevant_rects is None or any(line.rect.intersects(relevant_rect) for relevant_rect in relevant_rects):
                 if detect_vertical:
                     if line.rect.height > line.rect.width and len(line.text) > 2:
                         vertical_detected = True

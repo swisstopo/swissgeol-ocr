@@ -106,17 +106,17 @@ class Processor:
         new_page = out_doc[page_index]
 
         if self.use_aggressive_strategy:
-            ignore_rects = clean_old_ocr_aggressive(new_page)
+            relevant_rects = clean_old_ocr_aggressive(new_page)
         else:
             if not digitally_born:
                 clean_old_ocr(new_page)
-                ignore_rects = []
+                relevant_rects = None
             else:
                 print(" Skipping digitally-born page.")
                 return
         tmp_path_prefix = os.path.join(self.tmp_dir, f"page{page_number}")
         lines_to_draw = process_page(out_doc, new_page, self.textractor, tmp_path_prefix,
-                                     self.confidence_threshold, ignore_rects)
+                                     self.confidence_threshold, relevant_rects)
 
         text_layer_path = os.path.join(self.tmp_dir, f"page{page_number}.pdf")
         draw_ocr_text_page(new_page, text_layer_path, lines_to_draw)

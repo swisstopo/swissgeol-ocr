@@ -16,11 +16,8 @@ def process_page(
         extractor: Textractor,
         tmp_path_prefix: str,
         confidence_threshold: float,
-        ignore_rects: list[pymupdf.Rect] | None = None
+        relevant_rects: list[pymupdf.Rect] | None = None
 ):
-    if ignore_rects is None:
-        ignore_rects = []
-
     page.clean_contents()
 
     # create a single-page PDF document that can be modified if necessary, before being sent to AWS Textract
@@ -46,7 +43,7 @@ def process_page(
             textractor=extractor,
             confidence_threshold=confidence_threshold,
             textract_doc_path=textract_doc_path,
-            ignore_rects=ignore_rects,
+            relevant_rects=relevant_rects,
             tmp_path_prefix=tmp_path_prefix
         )
         lines_to_draw = page_ocr.apply_ocr(clip_rect=page.rect)
@@ -221,17 +218,28 @@ def clean_old_ocr(page: pymupdf.Page):
         print("  {} boxes removed".format(counter))
 
 
+def _rect_diff(main_rect: pymupdf.Rect, subtract_rect: pymupdf.Rect) -> list[pymupdf.Rect]:
+    if not subtract_rect.intersects(main_rect):
+        return [main_rect]
+    else:
+        top = pymupdf.Rect(main_rect.x0, main_rect.y0, main_rect.x1, subtract_rect.y0)
+        bottom = pymupdf.Rect(main_rect.x0, subtract_rect.y1, main_rect.x1, main_rect.y1)
+        left = pymupdf.Rect(main_rect.x0, main_rect.y0, subtract_rect.x0, main_rect.y1)
+        right = pymupdf.Rect(subtract_rect.x1, main_rect.y0, main_rect.x1, main_rect.y1)
+        return [rect for rect in [top, bottom, left, right] if not rect.is_empty]
+
 def clean_old_ocr_aggressive(page: pymupdf.Page) -> list[pymupdf.Rect]:
     """
     Also cleans "fill-text" and "stroke-text" areas that are completely covered by some image.
 
-    Returns a list of Rects that bound text that is still (potentially partially) visible, and where no OCR should be
-    applied.
+    Returns a list of Rects that cover the area of the page where OCR should be applied, because there is an image and
+    no digitally-born text or lines yet.
     """
     bboxes = page.get_bboxlog()
 
     possibly_visible_text = []
     invisible_text = []
+    rects_for_ocr = []
     for boxType, rectangle in bboxes:
         rect = pymupdf.Rect(rectangle)
         if boxType == "ignore-text":
@@ -242,9 +250,15 @@ def clean_old_ocr_aggressive(page: pymupdf.Page) -> list[pymupdf.Rect]:
         # Empty rectangle that should be ignored occurs sometimes, e.g. SwissGeol 44191 page 37.
         if (boxType == "fill-text" or boxType == "stroke-text" or boxType == "fill-path") and not rect.is_empty:
             possibly_visible_text.append(rect)
+            rects_for_ocr = [
+                rect_for_ocr
+                for main_rect in rects_for_ocr
+                for rect_for_ocr in _rect_diff(main_rect, rect)
+            ]
         if boxType == "fill-image":
             invisible_text.extend([text_rect for text_rect in possibly_visible_text if rect.contains(text_rect)])
             possibly_visible_text = [text_rect for text_rect in possibly_visible_text if not rect.contains(text_rect)]
+            rects_for_ocr.append(rect)
 
     counter = 0
     for rect in invisible_text:
@@ -260,5 +274,5 @@ def clean_old_ocr_aggressive(page: pymupdf.Page) -> list[pymupdf.Rect]:
     if len(possibly_visible_text):
         print("  {} boxes preserved".format(len(possibly_visible_text)))
 
-    return possibly_visible_text
+    return rects_for_ocr
 

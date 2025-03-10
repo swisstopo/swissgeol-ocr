@@ -73,14 +73,15 @@ def main():
 
         print()
         print(asset_item.filename)
-        ocr.process(
+        ocr.Processor(
             asset_item.local_path,
+            settings.input_debug_page,
             out_path,
             asset_item.tmp_path,
             extractor.textract_client,
             settings.confidence_threshold,
             settings.use_aggressive_strategy,
-        )
+        ).process()
 
         target.save(asset_item)
 

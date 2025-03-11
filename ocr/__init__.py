@@ -8,7 +8,7 @@ from pymupdf.mupdf import PDF_ENCRYPT_KEEP
 from pathlib import Path
 from mypy_boto3_textract import TextractClient as Textractor
 
-from ocr.crop import crop_images, replace_jpx_images
+from ocr.crop import crop_images, replace_jpx_images, _pixmap_from_xref
 from ocr.resize import resize_page
 from ocr.util import process_page, clean_old_ocr, is_digitally_born, draw_ocr_text_page, clean_old_ocr_aggressive
 
@@ -106,6 +106,12 @@ class Processor:
         new_page = out_doc[page_index]
 
         if self.use_aggressive_strategy:
+
+            for dict in new_page.get_image_info(xrefs=True):
+                xref = dict['xref']
+                img = _pixmap_from_xref(out_doc, xref)
+                img.save(f'tmp/{xref}.png')
+
             relevant_rects = clean_old_ocr_aggressive(new_page)
         else:
             if not digitally_born:

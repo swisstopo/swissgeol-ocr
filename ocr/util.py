@@ -219,7 +219,7 @@ def clean_old_ocr(page: pymupdf.Page):
 
 
 def _rect_diff(main_rect: pymupdf.Rect, subtract_rect: pymupdf.Rect) -> list[pymupdf.Rect]:
-    if not subtract_rect.intersects(main_rect):
+    if not _intersects(main_rect, subtract_rect):
         return [main_rect]
     else:
         top = pymupdf.Rect(main_rect.x0, main_rect.y0, main_rect.x1, subtract_rect.y0)
@@ -227,6 +227,13 @@ def _rect_diff(main_rect: pymupdf.Rect, subtract_rect: pymupdf.Rect) -> list[pym
         left = pymupdf.Rect(main_rect.x0, main_rect.y0, subtract_rect.x0, main_rect.y1)
         right = pymupdf.Rect(subtract_rect.x1, main_rect.y0, main_rect.x1, main_rect.y1)
         return [rect for rect in [top, bottom, left, right] if not rect.is_empty]
+
+def _intersects(r1: pymupdf.Rect, r2: pymupdf.Rect) -> bool:
+    return (
+        r1.x0 < r2.x1 and r2.x0 < r1.x1
+    ) and (
+        r1.y0 < r2.y1 and r2.y0 < r1.y1
+    )
 
 def clean_old_ocr_aggressive(page: pymupdf.Page) -> list[pymupdf.Rect]:
     """
@@ -242,10 +249,11 @@ def clean_old_ocr_aggressive(page: pymupdf.Page) -> list[pymupdf.Rect]:
     rects_for_ocr = []
     for boxType, rectangle in bboxes:
         rect = pymupdf.Rect(rectangle)
+        print(boxType, rect, len(invisible_text), len(possibly_visible_text), len(rects_for_ocr))
         if boxType == "ignore-text":
             # Some digitally-born documents (e.g. ZH 267124198-bp.pdf) draw the text using fill-path elements and then
             # add `ignore-text` to make the text searchable/selectable. We don't want to remove these.
-            if all(not rect.intersects(visible) for visible in possibly_visible_text):
+            if all(not _intersects(rect, visible) for visible in possibly_visible_text):
                 invisible_text.append(rect)
         # Empty rectangle that should be ignored occurs sometimes, e.g. SwissGeol 44191 page 37.
         if (boxType == "fill-text" or boxType == "stroke-text" or boxType == "fill-path") and not rect.is_empty:

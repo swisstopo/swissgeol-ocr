@@ -47,7 +47,7 @@ class Processor:
 
         in_doc = pymupdf.open(in_path)
         in_page_count = in_doc.page_count
-        in_doc.save(tmp_out_path, garbage=3, deflate=True, use_objstms=1)
+        in_doc.ez_save(tmp_out_path)
 
         out_doc = pymupdf.open(tmp_out_path)
 
@@ -61,14 +61,10 @@ class Processor:
             # only keep the debug page in its two versions (original + text-only)
             out_doc.delete_pages(range(0, self.debug_page - 1))
             out_doc.delete_pages(range(2, out_doc.page_count))
-            out_doc.saveIncr()
 
+        out_doc.ez_save(self.output_path)
         out_doc.close()
         in_doc.close()
-
-        out_doc = pymupdf.open(tmp_out_path)
-        out_doc.save(self.output_path, garbage=3, deflate=True, use_objstms=1)
-        out_doc.close()
 
         # Verify that we can read the written document, and that it still has the same number of pages. Some corrupt input
         # documents might lead to an empty or to a corrupt output document, sometimes even without throwing an error. (See

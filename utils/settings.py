@@ -15,11 +15,14 @@ class SharedSettings(BaseSettings):
 
 class ApiSettings(SharedSettings):
     aws_profile: str | None = None
+    textract_aws_profile: str | None = None
     skip_processing: bool = False
 
+    s3_input_endpoint: str
     s3_input_bucket: str
     s3_input_folder: str
 
+    s3_output_endpoint: str
     s3_output_bucket: str
     s3_output_folder: str
 

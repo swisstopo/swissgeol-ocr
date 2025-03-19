@@ -13,15 +13,13 @@ type S3Bucket = any
 
 @dataclass
 class Client:
-    s3: S3ServiceResource
+    s3_input: S3ServiceResource
+    s3_output: S3ServiceResource
     textract: Textractor
 
-    def bucket(self, name: str) -> Bucket:
-        return self.s3.Bucket(name)
-
-    def exists_file(self, bucket_name: str, key: str) -> bool:
+    def exists_input_file(self, bucket_name: str, key: str) -> bool:
         try:
-            self.s3.Object(bucket_name, key).load()
+            self.s3_input.Object(bucket_name, key).load()
             return True
         except ClientError as e:
             if e.response['Error']['Code'] == '404':
@@ -38,9 +36,15 @@ def connect(settings: ApiSettings) -> Client:
     else:
         session = open_session_by_service_role()
 
+    if is_set(settings.textract_aws_profile):
+        textract_session = open_session_by_profile(settings.textract_aws_profile)
+    else:
+        textract_session = session
+
     return Client(
-        s3=session.resource('s3'),
-        textract=session.client('textract')
+        s3_input=session.resource('s3', endpoint_url=settings.s3_output_endpoint),
+        s3_output=session.resource('s3', endpoint_url=settings.s3_output_endpoint),
+        textract=textract_session.client('textract')
     )
 
 

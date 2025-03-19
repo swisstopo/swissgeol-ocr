@@ -41,7 +41,7 @@ def start(
         )
 
     aws_client = aws.connect(settings)
-    has_file = aws_client.exists_file(
+    has_file = aws_client.exists_input_file(
         settings.s3_input_bucket,
         f'{settings.s3_input_folder}{payload.file}',
     )
@@ -110,7 +110,7 @@ def process(
     output_path = tmp_dir / "output.pdf"
 
     aws.load_file(
-        aws_client.bucket(settings.s3_input_bucket),
+        aws_client.s3_input.Bucket(settings.s3_input_bucket),
         f'{settings.s3_input_folder}{payload.file}',
         str(input_path),
     )
@@ -126,7 +126,7 @@ def process(
     ).process()
 
     aws.store_file(
-        aws_client.bucket(settings.s3_output_bucket),
+        aws_client.s3_output.Bucket(settings.s3_output_bucket),
         f'{settings.s3_output_folder}{payload.file}',
         str(output_path),
     )

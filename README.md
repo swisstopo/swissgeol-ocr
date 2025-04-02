@@ -31,6 +31,8 @@ Additional features:
 
 ## Installation
 
+Python 3.12 is required.
+
 Example using a virtual environment and `pip install`:
 
 ```
@@ -139,9 +141,13 @@ AWS_PROFILE=swisstopo-ngm
 # AWS_ACCESS_KEY=
 # AWS_SECRET_ACCESS_KEY=
 
+# During local development, an S3-compatible service like MinIO (https://min.io/) can be used.
+# In this case, the endpoint will look like `http://minio:9000`.
+S3_INPUT_ENDPOINT=https://s3.eu-central-1.amazonaws.com
 S3_INPUT_BUCKET=swissgeol-assets-swisstopo
 S3_INPUT_FOLDER=asset_files/
 
+S3_OUTPUT_ENDPOINT=https://s3.eu-central-1.amazonaws.com
 S3_OUTPUT_BUCKET=swissgeol-assets-swisstopo
 S3_OUTPUT_FOLDER=new_ocr_output/
 

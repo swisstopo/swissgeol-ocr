@@ -42,7 +42,7 @@ def connect(settings: ApiSettings) -> Client:
         textract_session = session
 
     return Client(
-        s3_input=session.resource('s3', endpoint_url=settings.s3_output_endpoint),
+        s3_input=session.resource('s3', endpoint_url=settings.s3_input_endpoint),
         s3_output=session.resource('s3', endpoint_url=settings.s3_output_endpoint),
         textract=textract_session.client('textract')
     )

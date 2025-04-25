@@ -122,13 +122,13 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
             if not following:
                 break
 
-            current_line  = min(following, key=lambda line: line.sort_key)
-            remaining_lines.remove(current_line )
-            if any(line.needs_to_come_before(current_line ) for line in remaining_lines):
-                remaining_lines.add(current_line )
+            current_line = min(following, key=lambda line: line.sort_key)
+            remaining_lines.remove(current_line)
+            if any(line.needs_to_come_before(current_line) for line in remaining_lines):
+                remaining_lines.add(current_line)
                 break
 
-            current_block.append(current_line .line)
+            current_block.append(current_line.line)
 
         blocks.append(ReadingOrderBlock(current_block))
     return blocks

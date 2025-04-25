@@ -154,6 +154,50 @@ def test_sort_lines_with_sidenotes(single_column_with_sidenotes_doc):
     sort_keys = [block.sort_key for block in sorted_blocks]
     assert sort_keys == sorted(sort_keys), "Blocks are not sorted correctly by reading order."
 
+
+@pytest.fixture
+def table_with_gaps_doc(pdf_dir):
+    # Test case inspired by Asset 7138.pdf page 52.
+    doc = pymupdf.Document()
+    page = doc.new_page()
+
+    # Bounding boxes for text
+    table_rect = pymupdf.Rect(20, 0, 50, 200)  # Main text column
+    sidenote_rect = pymupdf.Rect(70, 60, 170, 150)
+
+    # Main text
+    page.insert_textbox(table_rect, "\n".join(["1", "2", "3", "4", "5"]) + "\n\n\n" + "\n".join(["6", "7", "8", "9", "10"]))
+
+    # Side notes
+    page.insert_textbox(sidenote_rect, "Hinweis: Swisstopo ist das Bundesamt für Landestopografie.")
+
+    page.draw_rect(table_rect, color=(1, 0, 0), width=1)  # Red for main
+    page.draw_rect(sidenote_rect, color=(0, 1, 0), width=1)
+    if pdf_dir:
+        doc.save(pdf_dir / "table_with_gaps.pdf")
+    return doc
+
+
+def test_table_with_gaps(table_with_gaps_doc):
+    text = table_with_gaps_doc[0].get_text("dict")
+
+    lines = [
+        _create_line(pymupdf.Rect(span['bbox']), span['text'])
+        for block in text['blocks']
+        for line in block['lines']
+        for span in line['spans']
+    ]
+
+    sorted_blocks = sort_lines(lines)
+    extracted_text = " ".join([line.text for block in sorted_blocks for line in block.lines])
+
+    # Expected reading order: Main text should be read first, then side notes
+    expected_text = (
+        "1 2 3 4 5 6 7 8 9 10 Hinweis: Swisstopo ist das Bundesamt für Landestopografie."
+    )
+
+    assert extracted_text == expected_text, "Extracted text does not match expected reading order."
+
 def draw(page: pymupdf.Page, text: str, rect: pymupdf.Rect):
     page.insert_textbox(rect, text)
     page.draw_rect(rect, color=(0, 0, 1))

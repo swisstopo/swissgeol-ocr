@@ -8,9 +8,12 @@ from pymupdf.mupdf import PDF_ENCRYPT_KEEP
 from pathlib import Path
 from mypy_boto3_textract import TextractClient as Textractor
 
+from ocr.applyocr import process_page
+from ocr.clean import clean_old_ocr, clean_old_ocr_aggressive
 from ocr.crop import crop_images, replace_jpx_images
+from ocr.draw import draw_ocr_text_page
 from ocr.resize import resize_page
-from ocr.util import process_page, clean_old_ocr, is_digitally_born, draw_ocr_text_page, clean_old_ocr_aggressive
+from ocr.util import is_digitally_born
 
 @dataclasses.dataclass
 class Processor:

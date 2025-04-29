@@ -88,10 +88,7 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
         current_block = [current_line.line]
 
         while remaining_lines:
-            # TODO: deal with lines that are split into several TextLine objects, e.g. 33120.pdf p.9
-
-            # lines that are directly below the last line, either left-aligned, right-aligned or centered
-            following = {line for line in remaining_lines if line.distance_after(current_line) < 20}
+            next_line = None
 
             # add text lines that seem to continue the current column, even if they are further down (but not futher
             # down than the current height of the column)
@@ -110,12 +107,24 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
                         x_overlap(column_rect, line.rect) > 0.8 * line.rect.width
                 }
                 if len(in_column_lines):
-                    following.add(min(in_column_lines, key=lambda line: line.rect.y0))
+                    highest_following = min(in_column_lines, key=lambda line: line.rect.y0)
+                    candidates = {
+                        line for line in in_column_lines
+                        if line.needs_to_come_before(highest_following)
+                    }
+                    candidates.add(highest_following)
+                    next_line = min(candidates, key=lambda line: line.rect.x0)
 
-            if not following:
+            if not next_line:
+                # lines that are directly below the last line, either left-aligned, right-aligned or centered
+                following = {line for line in remaining_lines if line.distance_after(current_line) < 20}
+                if len(following):
+                    next_line = min(following, key=lambda line: line.rect.y0)
+
+            if not next_line:
                 break
 
-            current_line = min(following, key=lambda line: line.rect.y0)
+            current_line = next_line
             remaining_lines.remove(current_line)
 
             if any(line.needs_to_come_before(current_line) for line in remaining_lines):

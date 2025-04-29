@@ -228,7 +228,39 @@ def test_indentation(indentation_doc):
 
     sorted_blocks = sort_lines(lines)
 
-    assert len(sorted_blocks) == 1, ("Significant indentation should not start a new block.")
+    assert len(sorted_blocks) == 1, "Significant indentation should not start a new block."
+
+
+@pytest.fixture
+def overlap_doc(pdf_dir):
+    # Test case inspired by Asset 0FK5LEG800_bp_19940328_Ausserber92-8.pdf page 1 (material descriptions).
+    doc = pymupdf.Document()
+    page = doc.new_page()
+
+    # Bounding boxes for text
+    page.insert_textbox(pymupdf.Rect(0, 0, 400, 20), "One")
+    page.insert_textbox(pymupdf.Rect(0, 7, 400, 27), "Two")
+    page.insert_textbox(pymupdf.Rect(0, 14, 400, 34), "Three")
+
+    if pdf_dir:
+        doc.save(pdf_dir / "overlap.pdf")
+    return doc
+
+
+def test_overlap(overlap_doc):
+    text = overlap_doc[0].get_text("dict")
+
+    lines = [
+        _create_line(pymupdf.Rect(span['bbox']), span['text'])
+        for block in text['blocks']
+        for line in block['lines']
+        for span in line['spans']
+    ]
+
+    sorted_blocks = sort_lines(lines)
+    extracted_text = " ".join([line.text for block in sorted_blocks for line in block.lines])
+    expected_text = "One Two Three"
+    assert extracted_text == expected_text, "Extracted text does not match expected reading order."
 
 
 def draw(page: pymupdf.Page, text: str, rect: pymupdf.Rect):
@@ -312,11 +344,11 @@ def test_sort_lines_with_depths_and_paragraph(interval_column_paragraph_doc):
         "brauner, siltigen bis stark siltigen Feinsand mit wechselndem Grobsand-Kiesanteil "
         "20-30m "
         "brauner, tonigen Kies mit viel Sand "
+        "1 "  # even better would be to have this page number read first, but this is ok for now
         "Die tonig-siltigen Schwemmlehme haben eine relativ niedrige "
         "Scherfestigkeit und eine hohe Setzungsempfindlichkeit. "
         "Die sandigen Schwemmablagerungen haben wesentlich bessere Eigenschaften. "
         "30-40m 40-50m "
-        "1 "  # even better would be to have this page number read first, but this is ok for now
         "Humus Sauberer Kies mit viel Sand"
     )
 

@@ -48,7 +48,11 @@ class TextLineReadingOrder:
         return self.rect.x0 + self.rect.y0
 
     def needs_to_come_before(self, other: "TextLineReadingOrder") -> bool:
-        return self.rect.x0 < other.x_middle and self.rect.y0 < other.y_middle
+        return (self.x_middle < other.x_middle and self.y_middle < other.y_middle) or (
+            self.x_middle < other.rect.x0 and self.y_middle < other.rect.y1
+        ) or (
+            self.y_middle < other.rect.y0 and self.x_middle < other.rect.x1
+        )
 
     def distance_after(self, other: "TextLineReadingOrder") -> float:
         left = self.rect.top_left.distance_to(other.rect.bottom_left)
@@ -100,7 +104,7 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
                 in_column_lines = {
                     line
                     for line in remaining_lines
-                    if (line.rect.y0 + line.rect.y1) / 2 > column_rect.y1 and  # below
+                    if line.rect.y1 > column_rect.y1 and  # below
                         line.rect.y0 - column_rect.y1 < column_rect.height and  # not too far below
                         line.rect.x0 > min_x and
                         line.rect.x1 < max_x and

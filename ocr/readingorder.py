@@ -57,12 +57,12 @@ class TextLineReadingOrder:
         return min(left, middle, right)
 
 
-def current_column(current_lines: list[TextLineReadingOrder], all_lines: list[TextLine]) -> pymupdf.Rect:
+def current_column(current_lines: list[TextLine], all_lines: list[TextLine]) -> pymupdf.Rect:
     other_lines = set(all_lines)
     column_rect = pymupdf.Rect()
-    for reading_order_line in current_lines[::-1]:
-        new_rect = column_rect.include_rect(reading_order_line.rect)
-        other_lines.remove(reading_order_line.line)
+    for line in current_lines[::-1]:
+        new_rect = column_rect.include_rect(line.rect)
+        other_lines.remove(line)
         if any(other_line.rect.intersects(column_rect) for other_line in other_lines):
             break
         else:
@@ -115,8 +115,9 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
             if not following:
                 break
 
-            current_line = min(following, key=lambda line: line.sort_key)
+            current_line = min(following, key=lambda line: line.rect.y0)
             remaining_lines.remove(current_line)
+
             if any(line.needs_to_come_before(current_line) for line in remaining_lines):
                 remaining_lines.add(current_line)
                 break

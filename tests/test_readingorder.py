@@ -198,6 +198,39 @@ def test_table_with_gaps(table_with_gaps_doc):
 
     assert extracted_text == expected_text, "Extracted text does not match expected reading order."
 
+
+@pytest.fixture
+def indentation_doc(pdf_dir):
+    # Test case inspired by Asset 11806.pdf page 1 (footnote).
+    doc = pymupdf.Document()
+    page = doc.new_page()
+
+    # Bounding boxes for text
+    page.insert_textbox(pymupdf.Rect(0, 0, 400, 10), "This is line number one", fontsize=5)
+    page.insert_textbox(pymupdf.Rect(0, 10, 400, 20), "This is line number two", fontsize=5)
+    page.insert_textbox(pymupdf.Rect(12, 20, 400, 30), "Indentation line", fontsize=5)
+    page.insert_textbox(pymupdf.Rect(0, 30, 400, 40), "This is line number four", fontsize=5)
+
+    if pdf_dir:
+        doc.save(pdf_dir / "indentation.pdf")
+    return doc
+
+
+def test_indentation(indentation_doc):
+    text = indentation_doc[0].get_text("dict")
+
+    lines = [
+        _create_line(pymupdf.Rect(span['bbox']), span['text'])
+        for block in text['blocks']
+        for line in block['lines']
+        for span in line['spans']
+    ]
+
+    sorted_blocks = sort_lines(lines)
+
+    assert len(sorted_blocks) == 1, ("Significant indentation should not start a new block.")
+
+
 def draw(page: pymupdf.Page, text: str, rect: pymupdf.Rect):
     page.insert_textbox(rect, text)
     page.draw_rect(rect, color=(0, 0, 1))

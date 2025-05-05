@@ -66,18 +66,70 @@ class ReadingOrderGeometry:
         return min(left, middle, right)
 
 
-def current_column(current_lines: list[TextLine], all_lines: list[TextLine]) -> pymupdf.Rect:
-    other_lines = set(all_lines)
-    column_rect = pymupdf.Rect()
-    for line in current_lines[::-1]:
-        new_rect = column_rect.include_rect(line.rect)
-        other_lines.remove(line)
-        if any(other_line.rect.intersects(column_rect) for other_line in other_lines):
-            break
-        else:
-            column_rect = new_rect
+@dataclass
+class ReadingOrderColumn:
+    rect: pymupdf.Rect
+    top_of_first_line: float
+    top_of_last_line: float
 
-    return column_rect
+    def add_line_before(self, line: TextLine) -> "ReadingOrderColumn":
+        return ReadingOrderColumn(
+            rect=pymupdf.Rect(self.rect).include_rect(line.rect),
+            top_of_first_line=line.rect.y0,
+            top_of_last_line=self.top_of_last_line
+        )
+
+    def is_interrupted_by(self, rect: pymupdf.Rect) -> bool:
+        y_middle = (rect.y0 + rect.y1) / 2
+        return rect.intersects(self.rect) and self.top_of_first_line < y_middle < self.top_of_last_line
+
+    def can_be_extended_by(self, geometry: ReadingOrderGeometry) -> bool:
+        column_width = self.rect.width
+        min_x = self.rect.x0 - 10 - 0.1 * column_width
+        max_x = self.rect.x1 + 10 + 0.1 * column_width
+        return (
+            geometry.y_middle > self.top_of_last_line and  # below
+            geometry.rect.y0 - self.rect.y1 < self.rect.height and  # not too far below
+            geometry.rect.x0 > min_x and
+            geometry.rect.x1 < max_x and
+            x_overlap(self.rect, geometry.rect) > 0.8 * geometry.rect.width
+        )
+
+    def is_accurately_extended_by(self, geometry: ReadingOrderGeometry) -> bool:
+        return self.can_be_extended_by(geometry) and x_overlap(self.rect, geometry.rect) > 0.8 * self.rect.width
+
+    @classmethod
+    def current_column(
+            cls,
+            current_line: TextLine,
+            preceding_lines: list[TextLine],
+            all_lines: list[TextLine]
+    ) -> "ReadingOrderColumn":
+        other_lines = set(all_lines)
+        other_lines.remove(current_line)
+        column = ReadingOrderColumn(
+            rect=current_line.rect,
+            top_of_first_line=current_line.rect.y0,
+            top_of_last_line=current_line.rect.y0
+        )
+        accurate_extension_count = sum(
+            1 for line in other_lines if column.is_accurately_extended_by(ReadingOrderGeometry(line.rect))
+        )
+        print([line.text for line in other_lines if column.is_accurately_extended_by(ReadingOrderGeometry(line.rect))])
+        for line in preceding_lines[::-1]:
+            new_column = column.add_line_before(line)
+            other_lines.remove(line)
+            new_accurate_extension_count = sum(
+                1 for line in other_lines if column.is_accurately_extended_by(ReadingOrderGeometry(line.rect))
+            )
+            if any(new_column.is_interrupted_by(other_line.rect) for other_line in other_lines):
+                break
+            if new_accurate_extension_count < accurate_extension_count:
+                break
+            else:
+                column = new_column
+
+        return column
 
 
 def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
@@ -98,31 +150,23 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
 
         while remaining_lines:
             next_line = None
+            print()
+            print(current_line.line.text)
 
             # add text lines that seem to continue the current column, even if they are further down (but not futher
             # down than the current height of the column)
-            column_rect = current_column(current_block, text_lines)
-            if not column_rect.is_empty:
-                column_width = column_rect.width
-                min_x = column_rect.x0 - 10 - 0.05 * column_width
-                max_x = column_rect.x1 + 10 + 0.05 * column_width
-                in_column_lines = {
-                    line
-                    for line in remaining_lines
-                    if line.geometry.rect.y1 > column_rect.y1 and  # below
-                        line.geometry.rect.y0 - column_rect.y1 < column_rect.height and  # not too far below
-                        line.geometry.rect.x0 > min_x and
-                        line.geometry.rect.x1 < max_x and
-                        x_overlap(column_rect, line.geometry.rect) > 0.8 * line.geometry.rect.width
+            column = ReadingOrderColumn.current_column(current_line.line, current_block[:-1], text_lines)
+            in_column_lines = {line for line in remaining_lines if column.can_be_extended_by(line.geometry)}
+            if len(in_column_lines):
+                highest_following = min(in_column_lines, key=lambda line: line.geometry.rect.y0)
+                candidates = {
+                    line for line in in_column_lines
+                    if line.geometry.needs_to_come_before(highest_following.geometry)
                 }
-                if len(in_column_lines):
-                    highest_following = min(in_column_lines, key=lambda line: line.geometry.rect.y0)
-                    candidates = {
-                        line for line in in_column_lines
-                        if line.geometry.needs_to_come_before(highest_following.geometry)
-                    }
-                    candidates.add(highest_following)
-                    next_line = min(candidates, key=lambda line: line.geometry.rect.x0)
+                candidates.add(highest_following)
+                print(column.rect)
+                print([c.line.text for c in candidates])
+                next_line = min(candidates, key=lambda line: line.geometry.rect.x0)
 
             if not next_line:
                 # lines that are directly below the last line, either left-aligned, right-aligned or centered

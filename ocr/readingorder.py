@@ -117,22 +117,15 @@ class ReadingOrderColumn:
         accurate_extension_count = sum(
             1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
         )
-        print("acc", [line.line.text for line in other_lines if column.is_accurately_extended_by(line.geometry)])
         for line in preceding_lines[::-1]:
             new_column = column.add_line_before(line.line)
             other_lines.remove(line)
             new_accurate_extension_count = sum(
                 1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
             )
-            print(" - ", line.line.text)
-            print("acc", [line.line.text for line in other_lines if column.is_accurately_extended_by(line.geometry)])
             if any(new_column.is_interrupted_by(other_line.geometry.rect) for other_line in other_lines):
-                print([other_line.line.text for other_line in other_lines if new_column.is_interrupted_by(other_line.geometry.rect)])
-                print([other_line.geometry.rect for other_line in other_lines if new_column.is_interrupted_by(other_line.geometry.rect)])
-                print(new_column.rect)
                 break
             if new_accurate_extension_count < accurate_extension_count:
-                print(new_accurate_extension_count, accurate_extension_count)
                 break
             else:
                 column = new_column

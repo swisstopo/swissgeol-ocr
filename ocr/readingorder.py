@@ -13,7 +13,6 @@ class ReadingOrderBlock:
         self.bottom = max([line.rect.y1 for line in lines])
         self.right = max([line.rect.x1 for line in lines])
         self.rect = pymupdf.Rect(self.left, self.top, self.right, self.bottom)
-        self.sort_key = min([line.rect.x0 + line.rect.y0 for line in lines])
 
     @property
     def text(self) -> str:

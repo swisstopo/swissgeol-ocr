@@ -158,10 +158,6 @@ def test_sort_lines_with_sidenotes(single_column_with_sidenotes_doc):
 
     assert extracted_text == expected_text, "Extracted text does not match expected reading order."
 
-    # Assert sort_key order (y-coordinate first, then x-coordinate)
-    sort_keys = [block.sort_key for block in sorted_blocks]
-    assert sort_keys == sorted(sort_keys), "Blocks are not sorted correctly by reading order."
-
 
 @pytest.fixture
 def table_with_gaps_doc(pdf_dir):

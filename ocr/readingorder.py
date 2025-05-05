@@ -69,19 +69,19 @@ class ReadingOrderGeometry:
 @dataclass
 class ReadingOrderColumn:
     rect: pymupdf.Rect
-    top_of_first_line: float
+    bottom_of_first_line: float
     top_of_last_line: float
 
     def add_line_before(self, line: TextLine) -> "ReadingOrderColumn":
         return ReadingOrderColumn(
             rect=pymupdf.Rect(self.rect).include_rect(line.rect),
-            top_of_first_line=line.rect.y0,
+            bottom_of_first_line=line.rect.y1,
             top_of_last_line=self.top_of_last_line
         )
 
     def is_interrupted_by(self, rect: pymupdf.Rect) -> bool:
         y_middle = (rect.y0 + rect.y1) / 2
-        return rect.intersects(self.rect) and self.top_of_first_line < y_middle < self.top_of_last_line
+        return rect.intersects(self.rect) and self.bottom_of_first_line < y_middle < self.top_of_last_line
 
     def can_be_extended_by(self, geometry: ReadingOrderGeometry) -> bool:
         column_width = self.rect.width
@@ -96,7 +96,9 @@ class ReadingOrderColumn:
         )
 
     def is_accurately_extended_by(self, geometry: ReadingOrderGeometry) -> bool:
-        return self.can_be_extended_by(geometry) and x_overlap(self.rect, geometry.rect) > 0.8 * self.rect.width
+        return self.can_be_extended_by(geometry) and x_overlap(self.rect, geometry.rect) > 0.8 * self.rect.width and (
+            self.rect.y1 < geometry.rect.y1  #strictly below
+        )
 
     @classmethod
     def current_column(
@@ -109,21 +111,28 @@ class ReadingOrderColumn:
         other_lines.remove(current_line)
         column = ReadingOrderColumn(
             rect=current_line.geometry.rect,
-            top_of_first_line=current_line.geometry.rect.y0,
+            bottom_of_first_line=current_line.geometry.rect.y1,
             top_of_last_line=current_line.geometry.rect.y0
         )
         accurate_extension_count = sum(
             1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
         )
+        print("acc", [line.line.text for line in other_lines if column.is_accurately_extended_by(line.geometry)])
         for line in preceding_lines[::-1]:
             new_column = column.add_line_before(line.line)
             other_lines.remove(line)
             new_accurate_extension_count = sum(
                 1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
             )
+            print(" - ", line.line.text)
+            print("acc", [line.line.text for line in other_lines if column.is_accurately_extended_by(line.geometry)])
             if any(new_column.is_interrupted_by(other_line.geometry.rect) for other_line in other_lines):
+                print([other_line.line.text for other_line in other_lines if new_column.is_interrupted_by(other_line.geometry.rect)])
+                print([other_line.geometry.rect for other_line in other_lines if new_column.is_interrupted_by(other_line.geometry.rect)])
+                print(new_column.rect)
                 break
             if new_accurate_extension_count < accurate_extension_count:
+                print(new_accurate_extension_count, accurate_extension_count)
                 break
             else:
                 column = new_column
@@ -154,8 +163,12 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
             # add text lines that seem to continue the current column, even if they are further down (but not futher
             # down than the current height of the column)
 
+            print()
+            print(current_line.line.text)
+
             column = ReadingOrderColumn.current_column(current_line, current_block[:-1], all_lines)
             in_column_lines = {line for line in remaining_lines if column.can_be_extended_by(line.geometry)}
+            print([line.line.text for line in in_column_lines])
             if len(in_column_lines):
                 highest_following = min(in_column_lines, key=lambda line: line.geometry.rect.y0)
                 candidates = {

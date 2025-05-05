@@ -101,27 +101,27 @@ class ReadingOrderColumn:
     @classmethod
     def current_column(
             cls,
-            current_line: TextLine,
-            preceding_lines: list[TextLine],
-            all_lines: list[TextLine]
+            current_line: TextLineReadingOrder,
+            preceding_lines: list[TextLineReadingOrder],
+            all_lines: set[TextLineReadingOrder]
     ) -> "ReadingOrderColumn":
-        other_lines = set(all_lines)
+        other_lines = all_lines.copy()
         other_lines.remove(current_line)
         column = ReadingOrderColumn(
-            rect=current_line.rect,
-            top_of_first_line=current_line.rect.y0,
-            top_of_last_line=current_line.rect.y0
+            rect=current_line.geometry.rect,
+            top_of_first_line=current_line.geometry.rect.y0,
+            top_of_last_line=current_line.geometry.rect.y0
         )
         accurate_extension_count = sum(
-            1 for line in other_lines if column.is_accurately_extended_by(ReadingOrderGeometry(line.rect))
+            1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
         )
         for line in preceding_lines[::-1]:
-            new_column = column.add_line_before(line)
+            new_column = column.add_line_before(line.line)
             other_lines.remove(line)
             new_accurate_extension_count = sum(
-                1 for line in other_lines if column.is_accurately_extended_by(ReadingOrderGeometry(line.rect))
+                1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
             )
-            if any(new_column.is_interrupted_by(other_line.rect) for other_line in other_lines):
+            if any(new_column.is_interrupted_by(other_line.geometry.rect) for other_line in other_lines):
                 break
             if new_accurate_extension_count < accurate_extension_count:
                 break
@@ -132,7 +132,8 @@ class ReadingOrderColumn:
 
 
 def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
-    remaining_lines = set([TextLineReadingOrder(line) for line in text_lines])
+    all_lines = {TextLineReadingOrder(line) for line in text_lines}
+    remaining_lines = all_lines.copy()
     blocks = []
 
     while remaining_lines:
@@ -145,14 +146,15 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
             current_line = min(must_come_before, key=lambda line: line.geometry.sort_key)
             remaining_lines.remove(current_line)
 
-        current_block = [current_line.line]
+        current_block = [current_line]
 
         while remaining_lines:
             next_line = None
 
             # add text lines that seem to continue the current column, even if they are further down (but not futher
             # down than the current height of the column)
-            column = ReadingOrderColumn.current_column(current_line.line, current_block[:-1], text_lines)
+
+            column = ReadingOrderColumn.current_column(current_line, current_block[:-1], all_lines)
             in_column_lines = {line for line in remaining_lines if column.can_be_extended_by(line.geometry)}
             if len(in_column_lines):
                 highest_following = min(in_column_lines, key=lambda line: line.geometry.rect.y0)
@@ -179,8 +181,8 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
                 remaining_lines.add(current_line)
                 break
 
-            current_block.append(current_line.line)
+            current_block.append(current_line)
 
-        blocks.append(ReadingOrderBlock(current_block))
+        blocks.append(ReadingOrderBlock([line.line for line in current_block]))
     return blocks
 

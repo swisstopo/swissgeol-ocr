@@ -1,3 +1,4 @@
+
 """Unit tests for the reading order logic.
 
 In order to easily visualise the different layouts that are tested in this file, run pytest with the additional option
@@ -353,5 +354,4 @@ def test_sort_lines_with_depths_and_paragraph(interval_column_paragraph_doc):
     )
 
     assert extracted_text == expected_text, "Extracted text does not match expected reading order."
-
 

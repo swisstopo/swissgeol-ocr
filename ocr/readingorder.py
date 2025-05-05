@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 
 import pymupdf
 
@@ -22,10 +23,12 @@ class ReadingOrderBlock:
 class TextLineReadingOrder:
     def __init__(self, line: TextLine):
         self.line = line
+        self.geometry = ReadingOrderGeometry(line.rect)
 
-    @property
-    def rect(self) -> pymupdf.Rect:
-        return self.line.rect
+
+class ReadingOrderGeometry:
+    def __init__(self, rect: pymupdf.Rect):
+        self.rect = rect
 
     @property
     def x_middle(self) -> float:
@@ -47,14 +50,16 @@ class TextLineReadingOrder:
     def sort_key(self):
         return self.rect.x0 + self.rect.y0
 
-    def needs_to_come_before(self, other: "TextLineReadingOrder") -> bool:
-        return (self.x_middle < other.x_middle and self.y_middle < other.y_middle) or (
+    def needs_to_come_before(self, other: "ReadingOrderGeometry") -> bool:
+        return (self.x_middle < other.x_middle and self.y_middle <= other.y_middle) or (
+            self.x_middle <= other.x_middle and self.y_middle < other.y_middle
+        ) or (
             self.x_middle < other.rect.x0 and self.y_middle < other.rect.y1
         ) or (
             self.y_middle < other.rect.y0 and self.x_middle < other.rect.x1
         )
 
-    def distance_after(self, other: "TextLineReadingOrder") -> float:
+    def distance_after(self, other: "ReadingOrderGeometry") -> float:
         left = self.rect.top_left.distance_to(other.rect.bottom_left)
         middle = self.top_middle.distance_to(other.bottom_middle)
         right = self.rect.top_right.distance_to(other.rect.bottom_right)
@@ -80,13 +85,13 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
     blocks = []
 
     while remaining_lines:
-        current_line = min(remaining_lines, key=lambda line: line.sort_key)
+        current_line = min(remaining_lines, key=lambda line: line.geometry.sort_key)
         remaining_lines.remove(current_line)
 
-        must_come_before = {line for line in remaining_lines if line.needs_to_come_before(current_line)}
+        must_come_before = {line for line in remaining_lines if line.geometry.needs_to_come_before(current_line.geometry)}
         if must_come_before:
             remaining_lines.add(current_line)
-            current_line = min(must_come_before, key=lambda line: line.sort_key)
+            current_line = min(must_come_before, key=lambda line: line.geometry.sort_key)
             remaining_lines.remove(current_line)
 
         current_block = [current_line.line]
@@ -104,26 +109,26 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
                 in_column_lines = {
                     line
                     for line in remaining_lines
-                    if line.rect.y1 > column_rect.y1 and  # below
-                        line.rect.y0 - column_rect.y1 < column_rect.height and  # not too far below
-                        line.rect.x0 > min_x and
-                        line.rect.x1 < max_x and
-                        x_overlap(column_rect, line.rect) > 0.8 * line.rect.width
+                    if line.geometry.rect.y1 > column_rect.y1 and  # below
+                        line.geometry.rect.y0 - column_rect.y1 < column_rect.height and  # not too far below
+                        line.geometry.rect.x0 > min_x and
+                        line.geometry.rect.x1 < max_x and
+                        x_overlap(column_rect, line.geometry.rect) > 0.8 * line.geometry.rect.width
                 }
                 if len(in_column_lines):
-                    highest_following = min(in_column_lines, key=lambda line: line.rect.y0)
+                    highest_following = min(in_column_lines, key=lambda line: line.geometry.rect.y0)
                     candidates = {
                         line for line in in_column_lines
-                        if line.needs_to_come_before(highest_following)
+                        if line.geometry.needs_to_come_before(highest_following.geometry)
                     }
                     candidates.add(highest_following)
-                    next_line = min(candidates, key=lambda line: line.rect.x0)
+                    next_line = min(candidates, key=lambda line: line.geometry.rect.x0)
 
             if not next_line:
                 # lines that are directly below the last line, either left-aligned, right-aligned or centered
-                following = {line for line in remaining_lines if line.distance_after(current_line) < 20}
+                following = {line for line in remaining_lines if line.geometry.distance_after(current_line.geometry) < 20}
                 if len(following):
-                    next_line = min(following, key=lambda line: line.rect.y0)
+                    next_line = min(following, key=lambda line: line.geometry.rect.y0)
 
             if not next_line:
                 break
@@ -131,7 +136,7 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
             current_line = next_line
             remaining_lines.remove(current_line)
 
-            if any(line.needs_to_come_before(current_line) for line in remaining_lines):
+            if any(line.geometry.needs_to_come_before(current_line.geometry) for line in remaining_lines):
                 remaining_lines.add(current_line)
                 break
 

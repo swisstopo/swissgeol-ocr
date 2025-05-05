@@ -387,8 +387,8 @@ def test_sort_lines_with_depths_and_paragraph(interval_column_paragraph_doc):
         "mit wechselndem Grobsand-Kiesanteil (vereinzelt bis reichlich) "
         "brauner, siltigen bis stark siltigen Feinsand mit wechselndem Grobsand-Kiesanteil "
         "20-30m "
-        "brauner, tonigen Kies mit viel Sand "
         "1 "  # even better would be to have this page number read first, but this is ok for now
+        "brauner, tonigen Kies mit viel Sand "
         "Die tonig-siltigen Schwemmlehme haben eine relativ niedrige "
         "Scherfestigkeit und eine hohe Setzungsempfindlichkeit. "
         "Die sandigen Schwemmablagerungen haben wesentlich bessere Eigenschaften. "

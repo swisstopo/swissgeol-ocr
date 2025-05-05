@@ -48,7 +48,8 @@ class ReadingOrderGeometry:
 
     @property
     def sort_key(self):
-        return self.rect.x0 + self.rect.y0
+        """Sort bounding boxes from top to bottom and from left to right; top-to-bottom having a stronger influence."""
+        return self.rect.x0 + 2 * self.rect.y0
 
     def needs_to_come_before(self, other: "ReadingOrderGeometry") -> bool:
         return (self.x_middle < other.x_middle and self.y_middle <= other.y_middle) or (
@@ -115,7 +116,6 @@ class ReadingOrderColumn:
         accurate_extension_count = sum(
             1 for line in other_lines if column.is_accurately_extended_by(ReadingOrderGeometry(line.rect))
         )
-        print([line.text for line in other_lines if column.is_accurately_extended_by(ReadingOrderGeometry(line.rect))])
         for line in preceding_lines[::-1]:
             new_column = column.add_line_before(line)
             other_lines.remove(line)
@@ -150,8 +150,6 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
 
         while remaining_lines:
             next_line = None
-            print()
-            print(current_line.line.text)
 
             # add text lines that seem to continue the current column, even if they are further down (but not futher
             # down than the current height of the column)
@@ -164,8 +162,6 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
                     if line.geometry.needs_to_come_before(highest_following.geometry)
                 }
                 candidates.add(highest_following)
-                print(column.rect)
-                print([c.line.text for c in candidates])
                 next_line = min(candidates, key=lambda line: line.geometry.rect.x0)
 
             if not next_line:

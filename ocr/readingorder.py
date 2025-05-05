@@ -155,13 +155,8 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
 
             # add text lines that seem to continue the current column, even if they are further down (but not futher
             # down than the current height of the column)
-
-            print()
-            print(current_line.line.text)
-
             column = ReadingOrderColumn.current_column(current_line, current_block[:-1], all_lines)
             in_column_lines = {line for line in remaining_lines if column.can_be_extended_by(line.geometry)}
-            print([line.line.text for line in in_column_lines])
             if len(in_column_lines):
                 highest_following = min(in_column_lines, key=lambda line: line.geometry.rect.y0)
                 candidates = {

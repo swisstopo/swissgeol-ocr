@@ -41,7 +41,7 @@ def start(
         )
 
     aws_client = aws.connect(settings)
-    has_file = aws_client.exists_file(
+    has_file = aws_client.exists_input_file(
         settings.s3_input_bucket,
         f'{settings.s3_input_folder}{payload.file}',
     )
@@ -110,22 +110,23 @@ def process(
     output_path = tmp_dir / "output.pdf"
 
     aws.load_file(
-        aws_client.bucket(settings.s3_input_bucket),
+        aws_client.s3_input.Bucket(settings.s3_input_bucket),
         f'{settings.s3_input_folder}{payload.file}',
         str(input_path),
     )
 
-    ocr.process(
-        input_path,
-        output_path,
-        tmp_dir,
-        aws_client.textract,
-        settings.confidence_threshold,
-        settings.use_aggressive_strategy,
-    )
+    ocr.Processor(
+        input_path=input_path,
+        debug_page=None,
+        output_path=output_path,
+        tmp_dir=tmp_dir,
+        textractor=aws_client.textract,
+        confidence_threshold=settings.confidence_threshold,
+        use_aggressive_strategy=settings.use_aggressive_strategy,
+    ).process()
 
     aws.store_file(
-        aws_client.bucket(settings.s3_output_bucket),
+        aws_client.s3_output.Bucket(settings.s3_output_bucket),
         f'{settings.s3_output_folder}{payload.file}',
         str(output_path),
     )

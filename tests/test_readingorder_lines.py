@@ -25,3 +25,6 @@ def test_textline_mustcomebefore():
 
     above_right_hand_side = ReadingOrderGeometry(pymupdf.Rect(90, 90, 100, 100))
     assert above_right_hand_side.needs_to_come_before(reference)
+
+    wide_above = ReadingOrderGeometry(pymupdf.Rect(50, 0, 400, 100))
+    assert wide_above.needs_to_come_before(reference)

@@ -54,9 +54,9 @@ class ReadingOrderGeometry:
         return (self.x_middle < other.x_middle and self.y_middle <= other.y_middle) or (
             self.x_middle <= other.x_middle and self.y_middle < other.y_middle
         ) or (
-            self.x_middle < other.rect.x0 and self.y_middle < other.rect.y1
+            self.x_middle < other.rect.x0 and (self.y_middle < other.rect.y1 or self.rect.y0 < other.y_middle)
         ) or (
-            self.y_middle < other.rect.y0 and self.x_middle < other.rect.x1
+            self.y_middle < other.rect.y0 and (self.x_middle < other.rect.x1 or self.rect.x0 < other.x_middle)
         )
 
     def distance_after(self, other: "ReadingOrderGeometry") -> float:
@@ -118,19 +118,34 @@ class ReadingOrderColumn:
             1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
         )
         for line in preceding_lines[::-1]:
+            print("- ", line.line.text)
             new_column = column.add_line_before(line.line)
             other_lines.remove(line)
             new_accurate_extension_count = sum(
                 1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
             )
             if any(new_column.is_interrupted_by(other_line.geometry.rect) for other_line in other_lines):
+                print("interr")
                 break
             if new_accurate_extension_count < accurate_extension_count:
+                print("acc")
                 break
             else:
                 column = new_column
 
         return column
+
+
+def starting_line_for_next_block(remaining_lines: set[TextLineReadingOrder]) -> None | TextLineReadingOrder:
+    candidate_lines = remaining_lines.copy()
+    selected_line = None
+    while candidate_lines:
+        selected_line = min(candidate_lines, key=lambda line: line.geometry.sort_key)
+        candidate_lines.remove(selected_line)
+        candidate_lines = {
+            line for line in candidate_lines if line.geometry.needs_to_come_before(selected_line.geometry)
+        }
+    return selected_line
 
 
 def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
@@ -139,25 +154,21 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
     blocks = []
 
     while remaining_lines:
-        current_line = min(remaining_lines, key=lambda line: line.geometry.sort_key)
+        current_line = starting_line_for_next_block(remaining_lines)
         remaining_lines.remove(current_line)
-
-        must_come_before = {line for line in remaining_lines if line.geometry.needs_to_come_before(current_line.geometry)}
-        if must_come_before:
-            remaining_lines.add(current_line)
-            current_line = min(must_come_before, key=lambda line: line.geometry.sort_key)
-            remaining_lines.remove(current_line)
-
         current_block = [current_line]
 
         while remaining_lines:
             next_line = None
 
+            print()
+            print(current_line.line.text)
             # add text lines that seem to continue the current column, even if they are further down (but not futher
             # down than the current height of the column)
             column = ReadingOrderColumn.current_column(current_line, current_block[:-1], all_lines)
             in_column_lines = {line for line in remaining_lines if column.can_be_extended_by(line.geometry)}
             if len(in_column_lines):
+                print([l.line.text for l in in_column_lines])
                 highest_following = min(in_column_lines, key=lambda line: line.geometry.rect.y0)
                 candidates = {
                     line for line in in_column_lines
@@ -178,7 +189,9 @@ def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
             current_line = next_line
             remaining_lines.remove(current_line)
 
+            print("check", current_line.line.rect)
             if any(line.geometry.needs_to_come_before(current_line.geometry) for line in remaining_lines):
+                print("break!", [line.line.rect for line in remaining_lines if line.geometry.needs_to_come_before(current_line.geometry)])
                 remaining_lines.add(current_line)
                 break
 

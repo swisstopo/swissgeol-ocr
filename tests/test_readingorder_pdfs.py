@@ -7,7 +7,7 @@ and all layouts that are tested will be written as PDF files to the tmp/ directo
 """
 import pymupdf
 import pytest
-from pymupdf import TEXT_ALIGN_CENTER
+from pymupdf import TEXT_ALIGN_CENTER, TEXT_ALIGN_RIGHT
 
 from ocr.readingorder import sort_lines, TextLine
 
@@ -302,6 +302,39 @@ def test_split_text(split_text_doc):
     expected_text = "This is the first line This is the second line This is line three And this is line four This is the fifth line"
     assert extracted_text == expected_text, "Extracted text does not match expected reading order."
 
+
+@pytest.fixture
+def multiple_diagonal_lines_doc(pdf_dir):
+    # Test case inspired by Asset 11806.pdf page 31.
+    # Test that we respect the "must come before" condition with picking the line to start with, even when there are
+    # multiple lines that have a higher-priority "sort key".
+    doc = pymupdf.Document()
+    page = doc.new_page()
+
+    # Bounding boxes for text
+    page.insert_textbox(pymupdf.Rect(0, 0, 200, 20), "Short", align=TEXT_ALIGN_RIGHT)
+    page.insert_textbox(pymupdf.Rect(0, 15, 200, 35), "This is a medium line", align=TEXT_ALIGN_RIGHT)
+    page.insert_textbox(pymupdf.Rect(0, 30, 200, 50), "This is a long long long long long line", align=TEXT_ALIGN_RIGHT)
+
+    if pdf_dir:
+        doc.save(pdf_dir / "multiple_diagonal_lines.pdf")
+    return doc
+
+
+def test_multiple_diagonal_lines(multiple_diagonal_lines_doc):
+    text = multiple_diagonal_lines_doc[0].get_text("dict")
+
+    lines = [
+        _create_line(pymupdf.Rect(span['bbox']), span['text'])
+        for block in text['blocks']
+        for line in block['lines']
+        for span in line['spans']
+    ]
+
+    sorted_blocks = sort_lines(lines)
+    extracted_text = " ".join([line.text for block in sorted_blocks for line in block.lines])
+    expected_text = "Short This is a medium line This is a long long long long long line"
+    assert extracted_text == expected_text, "Extracted text does not match expected reading order."
 
 def draw(page: pymupdf.Page, text: str, rect: pymupdf.Rect):
     page.insert_textbox(rect, text)

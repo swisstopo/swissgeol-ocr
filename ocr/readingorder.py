@@ -51,13 +51,33 @@ class ReadingOrderGeometry:
         return self.rect.x0 + 2 * self.rect.y0
 
     def needs_to_come_before(self, other: "ReadingOrderGeometry") -> bool:
-        return (self.x_middle < other.x_middle and self.y_middle <= other.y_middle) or (
+        """Checks if text with this geometry must always come before text with the other geometry in the reading order.
+
+        This condition is stronger than following text columns or other reading order heuristics.
+
+        Note that the transitive closure of this relation is NOT anti-reflexive! I.e. we can have, "B needs to come
+        before A", "C needs to come before B" and "A needs to come before C" at the same time! (See unit tests.)
+        """
+        # "center of mass" of this object's bounding box is to the top and to the left of the other "center of mass"
+        top_left_condition = (self.x_middle < other.x_middle and self.y_middle <= other.y_middle) or (
             self.x_middle <= other.x_middle and self.y_middle < other.y_middle
-        ) or (
-            self.x_middle < other.rect.x0 and (self.y_middle < other.rect.y1 or self.rect.y0 < other.y_middle)
-        ) or (
-            self.y_middle < other.rect.y0 and (self.x_middle < other.rect.x1 or self.rect.x0 < other.x_middle)
         )
+
+        # - "center of mass" for this object is to the left of the entire other bounding box
+        # - this object's "center of mass" is above the other object's bottom
+        #   OR the top of this object is above the other object's "center of mass"
+        left_condition = self.x_middle < other.rect.x0 and (
+            self.y_middle < other.rect.y1 or self.rect.y0 < other.y_middle
+        )
+
+        # Same as before, but with x and y axes reversed.
+        # - "center of mass" for this object is above the entire other bounding box
+        # - etc...
+        top_condition = self.y_middle < other.rect.y0 and (
+            self.x_middle < other.rect.x1 or self.rect.x0 < other.x_middle
+        )
+
+        return top_left_condition or left_condition or top_condition
 
     def distance_after(self, other: "ReadingOrderGeometry") -> float:
         left = self.rect.top_left.distance_to(other.rect.bottom_left)

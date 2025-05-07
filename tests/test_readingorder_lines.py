@@ -5,7 +5,7 @@ import pytest
 from ocr.readingorder import ReadingOrderGeometry
 
 
-def test_textline_mustcomebefore():
+def test_textline_needstocomebefore():
     reference = ReadingOrderGeometry(pymupdf.Rect(100, 100, 200, 200))
 
     slight_left = ReadingOrderGeometry(pymupdf.Rect(99, 100, 199, 200))
@@ -28,3 +28,18 @@ def test_textline_mustcomebefore():
 
     wide_above = ReadingOrderGeometry(pymupdf.Rect(50, 0, 400, 100))
     assert wide_above.needs_to_come_before(reference)
+
+    # Show that the transitive closure of this relation is NOT anti-reflexive!
+    # I.e. we can have
+    # - B needs to come before A
+    # - C needs to come before B
+    # - A needs to come before C!
+    # While this is not the most elegant mathematically speaking, it works well for in practice for now.
+    # We just have to be careful, not to make any incorrect assumptions about this relation.
+    # In the future, we might want to think about making this into a proper mathematical "partial order" relation
+    a = ReadingOrderGeometry(pymupdf.Rect(200, 0, 300, 100))
+    b = ReadingOrderGeometry(pymupdf.Rect(100, 0, 250, 400))
+    c = ReadingOrderGeometry(pymupdf.Rect(0, 100, 300, 200))
+    assert b.needs_to_come_before(a)
+    assert c.needs_to_come_before(b)
+    assert a.needs_to_come_before(c)

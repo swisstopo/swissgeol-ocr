@@ -105,13 +105,14 @@ class ReadingOrderColumn:
 
     def can_be_extended_by(self, geometry: ReadingOrderGeometry) -> bool:
         column_width = self.rect.width
-        min_x = self.rect.x0 - 10 - 0.1 * column_width
-        max_x = self.rect.x1 + 10 + 0.1 * column_width
+        min_x = self.rect.x0 - 0.1 * column_width
+        max_x = self.rect.x1 + 0.1 * column_width
         return (
-            geometry.y_middle > self.top_of_last_line and  # below
-            geometry.rect.y0 - self.rect.y1 < self.rect.height and  # not too far below
+            geometry.y_middle > self.top_of_last_line and  # below this column
+            geometry.rect.y0 - self.rect.y1 < self.rect.height and  # not too far below this column
             geometry.rect.x0 > min_x and
             geometry.rect.x1 < max_x and
+            # a narrow text line at the left/right edge of this column should not be accepted
             x_overlap(self.rect, geometry.rect) > 0.8 * geometry.rect.width
         )
 
@@ -137,18 +138,24 @@ class ReadingOrderColumn:
         accurate_extension_count = sum(
             1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
         )
-        for line in preceding_lines[::-1]:
+        # Follow the preceding lines, in the reverse order of the reading order that was established so far.
+        for line in reversed(preceding_lines):
             new_column = column.add_line_before(line.line)
             other_lines.remove(line)
+
+            if any(new_column.is_interrupted_by(other_line.geometry.rect) for other_line in other_lines):
+                # No other lines that don't belong to the column are allowed to be significantly within the column.
+                break
+
             new_accurate_extension_count = sum(
                 1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
             )
-            if any(new_column.is_interrupted_by(other_line.geometry.rect) for other_line in other_lines):
-                break
             if new_accurate_extension_count < accurate_extension_count:
+                # If we have fewer lines down below that accurately extend the current column, then we stop the loop
+                # and return the last column (with more lines down below that accurately extend).
                 break
-            else:
-                column = new_column
+
+            column = new_column
 
         return column
 

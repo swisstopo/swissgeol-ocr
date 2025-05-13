@@ -22,6 +22,7 @@ def two_columns_doc(pdf_dir):
     rect_intro = pymupdf.Rect(0, 0, 440, 100)
     rect_left = pymupdf.Rect(0, 100, 200, 300)
     rect_right = pymupdf.Rect(240, 100, 440, 300)
+    rect_page_number = pymupdf.Rect(200, 200, 220, 220)
     page.insert_textbox(rect_intro, (
         "Das Bundesamt für Landestopografie swisstopo ist das Geoinformationszentrum der Schweiz. Bei uns dreht sich "
         "alles - oder fast alles - um Geodaten. Wir teilen dieses Wissen auf offene, transparente und "
@@ -35,6 +36,9 @@ def two_columns_doc(pdf_dir):
     page.insert_textbox(rect_left, (
         "Die Landesgeologie von swisstopo ist das Kompetenzzentrum des Bundes für die Erhebung, Analyse, Lagerung "
         "und Bereitstellung geologischer Daten von nationalem Interesse."
+    ), align=TEXT_ALIGN_CENTER)
+    page.insert_textbox(rect_page_number, (
+        "1"
     ), align=TEXT_ALIGN_CENTER)
 
     if pdf_dir:
@@ -57,7 +61,7 @@ def test_sort_lines(two_columns_doc):
         "wiederverwendbare Weise, damit es für die Bevölkerung, Unternehmen oder Behörden zugänglich ist. "
         "Die Landesgeologie von swisstopo ist das Kompetenzzentrum des Bundes für die Erhebung, Analyse, Lagerung "
         "und Bereitstellung geologischer Daten von nationalem Interesse. Sie erarbeitet geologische Grundlagendaten, "
-        "2D- und 3D-Modelle und leitet das unterirdische Forschungslabor Mont Terri in St-Ursanne."
+        "2D- und 3D-Modelle und leitet das unterirdische Forschungslabor Mont Terri in St-Ursanne. 1"
     )
 
 @pytest.fixture

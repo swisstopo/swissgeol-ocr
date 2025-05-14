@@ -1,53 +1,9 @@
+from dataclasses import dataclass
+
 import pymupdf
-from trp import Line
 
-
-class TextWord:
-    def __init__(self, text: str, derotated_rect: pymupdf.Rect, orientation: float):
-        self.text = text
-        self.derotated_rect = derotated_rect
-        self.orientation = orientation
-
-    @staticmethod
-    def from_textract(word, derotator):
-        derotated_rect, orientation = derotator.derotate(word.geometry)
-        return TextWord(word.text, derotated_rect, orientation)
-
-
-class TextLine:
-    def __init__(self, derotated_rect: pymupdf.Rect, orientation: float, rect: pymupdf.Rect, text: str, confidence: float, words: list[TextWord]):
-        self.text = text
-        self.orientation = orientation
-        self.derotated_rect = derotated_rect
-        self.rect = rect
-        self.confidence = confidence
-        self.words = words
-
-    @staticmethod
-    def from_textract(line: Line, orientation: float, page_height: float, transform: pymupdf.Matrix):
-        """
-
-        :param line:
-        :param orientation:
-        :param page_height:
-        :param transform: Matrix, based on rotation and clip rect, that transforms the Textract coordinates to the
-                          PyMuPDF coordinates of the original page.
-        """
-        derotator = GeometryDerotator(orientation, transform, page_height)
-        derotated_rect, orientation = derotator.derotate(line.geometry)
-
-        bbox = line.geometry.boundingBox
-        textract_rect = pymupdf.Rect(bbox.left, bbox.top, bbox.left + bbox.width,
-                                  bbox.top + bbox.height)
-        rect = textract_rect * transform
-
-        confidence: float = line.confidence / 100
-        text = line.text
-
-        words = [TextWord.from_textract(word, derotator) for word in line.words]
-
-        return TextLine(derotated_rect, orientation, rect, text, confidence, words)
-
+from ocr.textline import TextLine
+from ocr.util import x_overlap
 
 class ReadingOrderBlock:
     def __init__(self, lines: list[TextLine]):
@@ -57,156 +13,209 @@ class ReadingOrderBlock:
         self.bottom = max([line.rect.y1 for line in lines])
         self.right = max([line.rect.x1 for line in lines])
         self.rect = pymupdf.Rect(self.left, self.top, self.right, self.bottom)
-        self.sort_key = min([line.rect.x0 + line.rect.y0 for line in lines])
 
     @property
     def text(self) -> str:
         return " ".join(line.text for line in self.lines)
 
-    def continuation_distance_from(self, point: pymupdf.Point) -> float | None:
-        return min([point.distance_to(line.rect.top_left) for line in self.lines])
 
-    def is_below(self, other_block: "ReadingOrderBlock") -> bool:
-        return any(
-            line.rect.y0 > other_block.bottom and line.rect.x0 < other_block.right and line.rect.x1 > other_block.left
-            for line in self.lines
+class TextLineReadingOrder:
+    def __init__(self, line: TextLine):
+        self.line = line
+        self.geometry = ReadingOrderGeometry(line.rect)
+
+
+class ReadingOrderGeometry:
+    def __init__(self, rect: pymupdf.Rect):
+        self.rect = rect
+
+    @property
+    def x_middle(self) -> float:
+        return (self.rect.x0 + self.rect.x1) / 2
+
+    @property
+    def y_middle(self) -> float:
+        return (self.rect.y0 + self.rect.y1) / 2
+
+    @property
+    def top_middle(self):
+        return pymupdf.Point(self.x_middle, self.rect.y0)
+
+    @property
+    def bottom_middle(self):
+        return pymupdf.Point(self.x_middle, self.rect.y1)
+
+    @property
+    def sort_key(self):
+        """Sort bounding boxes from top to bottom and from left to right; top-to-bottom having a stronger influence."""
+        return self.rect.x0 + 2 * self.rect.y0
+
+    def needs_to_come_before(self, other: "ReadingOrderGeometry") -> bool:
+        """Checks if text with this geometry must always come before text with the other geometry in the reading order.
+
+        This condition is stronger than following text columns or other reading order heuristics.
+
+        Note that the transitive closure of this relation is NOT anti-reflexive! I.e. we can have, "B needs to come
+        before A", "C needs to come before B" and "A needs to come before C" at the same time! (See unit tests.)
+        """
+        # "center of mass" of this object's bounding box is to the top and to the left of the other "center of mass"
+        top_left_condition = (self.x_middle < other.x_middle and self.y_middle <= other.y_middle) or (
+            self.x_middle <= other.x_middle and self.y_middle < other.y_middle
         )
 
+        # - "center of mass" for this object is to the left of the entire other bounding box
+        # - this object's "center of mass" is above the other object's bottom
+        #   OR the top of this object is above the other object's "center of mass"
+        left_condition = self.x_middle < other.rect.x0 and (
+            self.y_middle < other.rect.y1 or self.rect.y0 < other.y_middle
+        )
 
-def overlaps(line, line2) -> bool:
-    vertical_margin = 15
-    ref_rect = pymupdf.Rect(line.rect.x0, line.rect.y0 - vertical_margin, line.rect.x1, line.rect.y1 + vertical_margin)
-    return ref_rect.intersects(line2.rect)
+        # Same as before, but with x and y axes reversed.
+        # - "center of mass" for this object is above the entire other bounding box
+        # - etc...
+        top_condition = self.y_middle < other.rect.y0 and (
+            self.x_middle < other.rect.x1 or self.rect.x0 < other.x_middle
+        )
+
+        return top_left_condition or left_condition or top_condition
+
+    def distance_after(self, other: "ReadingOrderGeometry") -> float:
+        left = self.rect.top_left.distance_to(other.rect.bottom_left)
+        middle = self.top_middle.distance_to(other.bottom_middle)
+        right = self.rect.top_right.distance_to(other.rect.bottom_right)
+        return min(left, middle, right)
 
 
-def adjacent_lines(lines: list[TextLine]) -> list[set[int]]:
-    result = [set() for _ in lines]
-    for index, line in enumerate(lines):
-        for index2, line2 in enumerate(lines):
-            if index2 > index:
-                if overlaps(line, line2):
-                    result[index].add(index2)
-                    result[index2].add(index)
-    return result
+@dataclass
+class ReadingOrderColumn:
+    rect: pymupdf.Rect
+    bottom_of_first_line: float
+    top_of_last_line: float
 
+    def add_line_before(self, line: TextLine) -> "ReadingOrderColumn":
+        return ReadingOrderColumn(
+            rect=pymupdf.Rect(self.rect).include_rect(line.rect),
+            bottom_of_first_line=line.rect.y1,
+            top_of_last_line=self.top_of_last_line
+        )
 
-def apply_transitive_closure(data: list[set[int]]) -> bool:
-    found_new_relation = False
-    for index, adjacent_indices in enumerate(data):
-        new_adjacent_indices = set()
-        for adjacent_index in adjacent_indices:
-            new_adjacent_indices.update(
-                new_index
-                for new_index in data[adjacent_index]
-                if new_index not in data[index]
+    def is_interrupted_by(self, rect: pymupdf.Rect) -> bool:
+        y_middle = (rect.y0 + rect.y1) / 2
+        return rect.intersects(self.rect) and self.bottom_of_first_line < y_middle < self.top_of_last_line
+
+    def can_be_extended_by(self, geometry: ReadingOrderGeometry) -> bool:
+        column_width = self.rect.width
+        min_x = self.rect.x0 - 0.1 * column_width
+        max_x = self.rect.x1 + 0.1 * column_width
+        return (
+            geometry.y_middle > self.top_of_last_line and  # below this column
+            geometry.rect.y0 - self.rect.y1 < self.rect.height and  # not too far below this column
+            geometry.rect.x0 > min_x and
+            geometry.rect.x1 < max_x and
+            # a narrow text line at the left/right edge of this column should not be accepted
+            x_overlap(self.rect, geometry.rect) > 0.8 * geometry.rect.width
+        )
+
+    def is_accurately_extended_by(self, geometry: ReadingOrderGeometry) -> bool:
+        return self.can_be_extended_by(geometry) and x_overlap(self.rect, geometry.rect) > 0.8 * self.rect.width and (
+            self.rect.y1 < geometry.rect.y1  #strictly below
+        )
+
+    @classmethod
+    def current_column(
+            cls,
+            current_line: TextLineReadingOrder,
+            preceding_lines: list[TextLineReadingOrder],
+            all_lines: set[TextLineReadingOrder]
+    ) -> "ReadingOrderColumn":
+        other_lines = all_lines.copy()
+        other_lines.remove(current_line)
+        column = ReadingOrderColumn(
+            rect=current_line.geometry.rect,
+            bottom_of_first_line=current_line.geometry.rect.y1,
+            top_of_last_line=current_line.geometry.rect.y0
+        )
+        accurate_extension_count = sum(
+            1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
+        )
+        # Follow the preceding lines, in the reverse order of the reading order that was established so far.
+        for line in reversed(preceding_lines):
+            new_column = column.add_line_before(line.line)
+            other_lines.remove(line)
+
+            if any(new_column.is_interrupted_by(other_line.geometry.rect) for other_line in other_lines):
+                # No other lines that don't belong to the column are allowed to be significantly within the column.
+                break
+
+            new_accurate_extension_count = sum(
+                1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
             )
+            if new_accurate_extension_count < accurate_extension_count:
+                # If we have fewer lines down below that accurately extend the current column, then we stop the loop
+                # and return the last column (with more lines down below that accurately extend).
+                break
 
-        for new_adjacent_index in new_adjacent_indices:
-            data[index].add(new_adjacent_index)
-            data[new_adjacent_index].add(index)
-            found_new_relation = True
-    return found_new_relation
+            column = new_column
 
-
-def select_blocks_from_position(
-        last_block: ReadingOrderBlock | None,
-        remaining_blocks: set[ReadingOrderBlock]
-) -> (list[ReadingOrderBlock], set[ReadingOrderBlock]):
-    if last_block is None:
-        next_block = min(remaining_blocks, key=lambda block: block.sort_key)
-    else:
-        below_blocks = {block for block in remaining_blocks if block.is_below(last_block)}
-        if len(below_blocks) == 0:
-            return [], remaining_blocks
-        else:
-            next_block = min(below_blocks, key=lambda block: block.continuation_distance_from(last_block.rect.bottom_left))
-    remaining_blocks.remove(next_block)
-    blocks_above_next_block = {
-        block
-        for block in remaining_blocks
-        if block.bottom < next_block.top and block.left < next_block.right
-    }
-    selected_blocks = select_blocks(blocks_above_next_block)
-    remaining_blocks.difference_update(selected_blocks)
-    selected_blocks.append(next_block)
-    return selected_blocks, remaining_blocks
+        return column
 
 
-def select_blocks(blocks: set[ReadingOrderBlock]) -> list[ReadingOrderBlock]:
-    remaining_blocks = blocks.copy()
-    sorted_blocks = []
-
-    while len(remaining_blocks) > 0:
-        # Select a first block, then try to read from top to bottom, but always ensure that any text that is above a
-        # newly selected block, comes first.
-        new_selected_blocks, remaining_blocks = select_blocks_from_position(None, remaining_blocks)
-
-        while len(new_selected_blocks) > 0:
-            last_selected_block = new_selected_blocks[-1]
-            sorted_blocks.extend(new_selected_blocks)
-
-            new_selected_blocks, remaining_blocks = select_blocks_from_position(last_selected_block, remaining_blocks)
-
-    return sorted_blocks
+def starting_line_for_next_block(remaining_lines: set[TextLineReadingOrder]) -> None | TextLineReadingOrder:
+    candidate_lines = remaining_lines.copy()
+    selected_line = None
+    while candidate_lines:
+        selected_line = min(candidate_lines, key=lambda line: line.geometry.sort_key)
+        candidate_lines.remove(selected_line)
+        candidate_lines = {
+            line for line in candidate_lines if line.geometry.needs_to_come_before(selected_line.geometry)
+        }
+    return selected_line
 
 
 def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
-    data = adjacent_lines(text_lines)
+    all_lines = {TextLineReadingOrder(line) for line in text_lines}
+    remaining_lines = all_lines.copy()
+    blocks = []
 
-    while apply_transitive_closure(data):
-        # apply transitive closure until the method returns false (nothing changes anymore; closure reached)
-        pass
+    while remaining_lines:
+        current_line = starting_line_for_next_block(remaining_lines)
+        remaining_lines.remove(current_line)
+        current_block = [current_line]
 
-    blocks: list[ReadingOrderBlock] = []
-    remaining_indices = {index for index, _ in enumerate(data)}
-    for index, adjacent_indices in enumerate(data):
-        if index in remaining_indices:
-            selected_indices = adjacent_indices
-            selected_indices.add(index)
-            blocks.append(ReadingOrderBlock(
-                [text_lines[selected_index] for selected_index in sorted(list(selected_indices))]
-            ))
-            remaining_indices.difference_update(selected_indices)
+        while remaining_lines:
+            next_line = None
 
-    return select_blocks(set(blocks))
+            # add text lines that seem to continue the current column, even if they are further down (but not futher
+            # down than the current height of the column)
+            column = ReadingOrderColumn.current_column(current_line, current_block[:-1], all_lines)
+            in_column_lines = {line for line in remaining_lines if column.can_be_extended_by(line.geometry)}
+            if len(in_column_lines):
+                highest_following = min(in_column_lines, key=lambda line: line.geometry.rect.y0)
+                candidates = {
+                    line for line in in_column_lines
+                    if line.geometry.needs_to_come_before(highest_following.geometry)
+                }
+                candidates.add(highest_following)
+                next_line = min(candidates, key=lambda line: line.geometry.rect.x0)
 
+            if not next_line:
+                # lines that are directly below the last line, either left-aligned, right-aligned or centered
+                following = {line for line in remaining_lines if line.geometry.distance_after(current_line.geometry) < 20}
+                if len(following):
+                    next_line = min(following, key=lambda line: line.geometry.rect.y0)
 
-class GeometryDerotator:
-    def __init__(self, orientation: float, transform: pymupdf.Matrix, page_height: float):
-        self.orientation = orientation
-        self.transform = transform
-        self.page_height = page_height
+            if not next_line:
+                break
 
-    def derotate(self, geometry) -> (pymupdf.Rect, float):
-        polygon = geometry.polygon
-        orientation = self.orientation
+            current_line = next_line
+            remaining_lines.remove(current_line)
 
-        top_left = pymupdf.Point(polygon[0].x, polygon[0].y) * self.transform
-        top_right = pymupdf.Point(polygon[1].x, polygon[1].y) * self.transform
-        bottom_left = pymupdf.Point(polygon[-1].x, polygon[-1].y) * self.transform
-        bottom_right = pymupdf.Point(polygon[-2].x, polygon[-2].y) * self.transform
-        quad = pymupdf.Quad(top_left, top_right, bottom_left, bottom_right)
+            if any(line.geometry.needs_to_come_before(current_line.geometry) for line in remaining_lines):
+                remaining_lines.add(current_line)
+                break
 
-        closest_multiple_of_90_deg = round(orientation / 90) * 90
-        diff_to_multiple_of_90_deg = orientation - closest_multiple_of_90_deg
+            current_block.append(current_line)
 
-        if abs(diff_to_multiple_of_90_deg) < 25:
-            # For small detected angles, just print text perfectly horizontally/vertically, because the detected angle
-            # might be an error. Cf LGD-272, examples: title page of asset 38802 or 38808.
-            orientation = closest_multiple_of_90_deg
+        blocks.append(ReadingOrderBlock([line.line for line in current_block]))
+    return blocks
 
-        # rotate around the bottom-left corner of the page
-        derotated_rect = quad.morph(
-            pymupdf.Point(0, self.page_height),
-            pymupdf.Matrix(1, 1).prerotate(-orientation)
-        ).rect
-
-        if abs(diff_to_multiple_of_90_deg) < 25:
-            middle_y = (derotated_rect.top_left.y + derotated_rect.bottom_right.y) / 2
-            left_x = (derotated_rect.top_left.x + derotated_rect.bottom_left.x) / 2
-            right_x = (derotated_rect.top_right.x + derotated_rect.bottom_right.x) / 2
-            line_height = top_left.distance_to(bottom_left)
-            # use a "straightened" version of the rect that was derotated with a multiple of 90 degrees
-            derotated_rect = pymupdf.Rect(left_x, middle_y - line_height / 2, right_x, middle_y + line_height / 2)
-
-        return derotated_rect, orientation

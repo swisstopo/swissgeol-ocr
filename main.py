@@ -73,7 +73,7 @@ def main():
 
         print()
         print(asset_item.filename)
-        ocr.Processor(
+        process_result = ocr.Processor(
             asset_item.local_path,
             settings.input_debug_page,
             out_path,
@@ -83,7 +83,7 @@ def main():
             settings.use_aggressive_strategy,
         ).process()
 
-        target.save(asset_item)
+        target.save(asset_item, process_result)
 
         if settings.cleanup_tmp_files:
             shutil.rmtree(asset_item.tmp_path)

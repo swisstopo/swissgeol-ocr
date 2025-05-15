@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Protocol
 
 import boto3
 from botocore.exceptions import ClientError
@@ -6,9 +7,19 @@ from mypy_boto3_s3 import S3ServiceResource
 from mypy_boto3_s3.service_resource import Bucket
 from mypy_boto3_textract import TextractClient as Textractor
 
+from ocr import ProcessResult
 from utils.settings import ApiSettings
 
 type S3Bucket = any
+type S3ObjectMetadata = dict[str, str]
+
+
+class SupportsStr(Protocol):
+    def __str__(self) -> str: ...
+
+
+# note: AWS stores metadata keys in lower case per default
+METADATA_PAGE_COUNT_KEY = "pagecount"
 
 
 @dataclass
@@ -64,5 +75,14 @@ def load_file(bucket: Bucket, key: str, local_path: str):
     bucket.download_file(key, local_path)
 
 
-def store_file(bucket: Bucket, key: str, local_path: str):
-    bucket.upload_file(local_path, key, ExtraArgs={'ContentType': 'application/pdf'})
+def store_file(bucket: Bucket, key: str, local_path: str, process_result: ProcessResult):
+    bucket.upload_file(local_path, key, ExtraArgs={
+        'ContentType': 'application/pdf',
+        'Metadata': {
+            **_parse_metadata(METADATA_PAGE_COUNT_KEY, process_result.number_of_pages)
+        }
+    })
+
+
+def _parse_metadata(key: str, value: SupportsStr | None) -> S3ObjectMetadata:
+    return {key: str(value)} if value else {}

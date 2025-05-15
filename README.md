@@ -28,6 +28,8 @@ Additional features:
   multiple requests. Indeed, AWS Textract has
   certain [limits on file size and page dimensions](https://docs.aws.amazon.com/textract/latest/dg/limits-document.html),
   and even within those limits, the quality of the results is better when the input dimensions are smaller.
+- Adds metadata to the object after processing, currently containing:
+  - `X-Amz-Meta-Pagecount`: The number of pages in the document if available, else the key is not set
 
 ## Installation
 
@@ -143,6 +145,7 @@ AWS_PROFILE=swisstopo-ngm
 
 # During local development, an S3-compatible service like MinIO (https://min.io/) can be used.
 # In this case, the endpoint will look like `http://minio:9000`.
+# Note that if MinIO is used, you still need to configure AWS_DEFAULT_REGION if none is set in your AWS credentials.
 S3_INPUT_ENDPOINT=https://s3.eu-central-1.amazonaws.com
 S3_INPUT_BUCKET=swissgeol-assets-swisstopo
 S3_INPUT_FOLDER=asset_files/

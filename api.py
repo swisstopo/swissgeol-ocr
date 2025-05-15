@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import uuid
+import random
 from typing import Annotated
 
 from fastapi import FastAPI, Depends, status, HTTPException, BackgroundTasks, Response
@@ -45,6 +46,7 @@ def start(
         settings.s3_input_bucket,
         f'{settings.s3_input_folder}{payload.file}',
     )
+
     if not has_file:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -97,11 +99,6 @@ def process(
         aws_client: aws.Client,
         settings: Annotated[ApiSettings, Depends(api_settings)],
 ):
-    if settings.skip_processing:
-        # Sleep between 30 seconds to 2 minutes to simulate processing time.
-        # sleep(randint(30, 120))
-        return
-
     task_id = f"{uuid.uuid4()}"
     tmp_dir = Path(settings.tmp_path) / task_id
     os.makedirs(tmp_dir, exist_ok=True)
@@ -115,20 +112,26 @@ def process(
         str(input_path),
     )
 
-    ocr.Processor(
-        input_path=input_path,
-        debug_page=None,
-        output_path=output_path,
-        tmp_dir=tmp_dir,
-        textractor=aws_client.textract,
-        confidence_threshold=settings.confidence_threshold,
-        use_aggressive_strategy=settings.use_aggressive_strategy,
-    ).process()
+    if settings.skip_processing:
+        # fake results from OCR processing and override output_path with input_path to replace file with metadata
+        process_result = ocr.ProcessResult(random.choice([None] + list(range(1, 51))))
+        output_path = input_path
+    else:
+        process_result = ocr.Processor(
+            input_path=input_path,
+            debug_page=None,
+            output_path=output_path,
+            tmp_dir=tmp_dir,
+            textractor=aws_client.textract,
+            confidence_threshold=settings.confidence_threshold,
+            use_aggressive_strategy=settings.use_aggressive_strategy,
+        ).process()
 
     aws.store_file(
         aws_client.s3_output.Bucket(settings.s3_output_bucket),
         f'{settings.s3_output_folder}{payload.file}',
         str(output_path),
+        process_result
     )
 
     shutil.rmtree(tmp_dir)

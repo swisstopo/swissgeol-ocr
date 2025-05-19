@@ -1,12 +1,11 @@
 import dataclasses
 import os
 import subprocess
+from pathlib import Path
 
 import pymupdf
-from pymupdf import mupdf
-from pymupdf.mupdf import PDF_ENCRYPT_KEEP
-from pathlib import Path
 from mypy_boto3_textract import TextractClient as Textractor
+from pymupdf import mupdf
 
 from ocr.applyocr import process_page
 from ocr.clean import clean_old_ocr, clean_old_ocr_aggressive
@@ -14,6 +13,12 @@ from ocr.crop import crop_images, replace_jpx_images
 from ocr.draw import draw_ocr_text_page
 from ocr.resize import resize_page
 from ocr.util import is_digitally_born
+
+
+@dataclasses.dataclass
+class ProcessResult:
+    number_of_pages: int | None
+
 
 @dataclasses.dataclass
 class Processor:
@@ -27,7 +32,7 @@ class Processor:
 
     def process(self):
         try:
-            self.process_pdf(self.input_path)
+            number_of_pages = self.process_pdf(self.input_path)
         except (ValueError, mupdf.FzErrorArgument, mupdf.FzErrorFormat) as e:
             gs_preprocess_path = self.tmp_dir / "gs.pdf"
             print(f"Encountered {e.__class__.__name__}: {e}. Trying Ghostscript preprocessing.")
@@ -42,9 +47,17 @@ class Processor:
                 "-sOutputFile={}".format(gs_preprocess_path),
                 self.input_path,
             ])
-            self.process_pdf(gs_preprocess_path)
+            number_of_pages = self.process_pdf(gs_preprocess_path)
 
-    def process_pdf(self, in_path: Path):
+        return ProcessResult(number_of_pages)
+
+    def process_pdf(self, in_path: Path) -> int | None:
+        """
+        Processes a given PDF
+
+        Returns:
+            int|None: number of pages in the output document if possible
+        """
         tmp_out_path = os.path.join(self.tmp_dir, f"output.incremental.pdf")
         os.makedirs(self.tmp_dir, exist_ok=True)
 
@@ -80,6 +93,8 @@ class Processor:
                     "Output document contains {} pages instead of {}".format(out_page_count, in_page_count)
                 )
         doc.close()
+
+        return in_page_count if in_page_count > 0 else None
 
     def process_page(
         self,

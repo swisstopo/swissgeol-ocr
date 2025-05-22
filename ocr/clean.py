@@ -45,10 +45,13 @@ def clean_old_ocr_aggressive(page: pymupdf.Page) -> Mask:
             mask.add_rect(rect)
             possibly_visible_text.add(rect)
         if boxType == "fill-image":
+            to_be_removed = set()
             for text_rect in possibly_visible_text:
                 if rect.contains(text_rect):
                     invisible_text.add(text_rect)
-                    possibly_visible_text.remove(text_rect)
+                    to_be_removed.add(text_rect)
+            for text_rect in to_be_removed:
+                possibly_visible_text.remove(text_rect)
             mask.remove_rect(rect)
 
     counter = 0

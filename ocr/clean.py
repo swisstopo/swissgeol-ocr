@@ -1,5 +1,6 @@
 import pymupdf
 from ocr.mask import Mask
+from ocr.util import fast_intersection
 
 
 def clean_old_ocr(page: pymupdf.Page):
@@ -29,23 +30,25 @@ def clean_old_ocr_aggressive(page: pymupdf.Page) -> Mask:
     bboxes = page.get_bboxlog()
 
     mask = Mask(page)
-    possibly_visible_text = []
+    possibly_visible_text = set()
+    invisible_text = set()
 
-    invisible_text = []
     for boxType, rectangle in bboxes:
         rect = pymupdf.Rect(rectangle)
         if boxType == "ignore-text":
             # Some digitally-born documents (e.g. ZH 267124198-bp.pdf) draw the text using fill-path elements and then
             # add `ignore-text` to make the text searchable/selectable. We don't want to remove these.
             if not mask.intersects(rect):
-                invisible_text.append(rect)
+                invisible_text.add(rect)
         # Empty rectangle that should be ignored occurs sometimes, e.g. SwissGeol 44191 page 37.
         if (boxType == "fill-text" or boxType == "stroke-text" or boxType == "fill-path") and not rect.is_empty:
             mask.add_rect(rect)
-            possibly_visible_text.append(rect)
+            possibly_visible_text.add(rect)
         if boxType == "fill-image":
-            invisible_text.extend([text_rect for text_rect in possibly_visible_text if rect.contains(text_rect)])
-            possibly_visible_text = [text_rect for text_rect in possibly_visible_text if not rect.contains(text_rect)]
+            for text_rect in possibly_visible_text:
+                if rect.contains(text_rect):
+                    invisible_text.add(text_rect)
+                    possibly_visible_text.remove(text_rect)
             mask.remove_rect(rect)
 
     counter = 0

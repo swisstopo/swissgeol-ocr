@@ -36,6 +36,6 @@ def fast_intersection(rect1: pymupdf.Rect, rect2: pymupdf.Rect) -> bool:
         rect2 (pymupdf.Rect): Second rectangle.
 
     Returns:
-        float: The x overlap between the two rectangles.
+        bool: True if there is a non-empty intersection between the two rectangles.
     """
     return (rect1.x0 < rect2.x1) and (rect1.x0 < rect2.x1) and (rect1.y0 < rect2.y1) and (rect1.y0 < rect2.y1)

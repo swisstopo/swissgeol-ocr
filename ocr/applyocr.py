@@ -9,7 +9,6 @@ from mypy_boto3_textract import TextractClient as Textractor
 from uuid import uuid4
 from pathlib import Path
 import os
-import numpy as np
 
 
 def process_page(
@@ -18,10 +17,10 @@ def process_page(
         extractor: Textractor,
         tmp_path_prefix: str,
         confidence_threshold: float,
-        mask: np.ndarray | None = None
+        mask: Mask | None = None
 ):
     if mask is None:
-        mask = np.zeros((round(page.rect.width), round(page.rect.height)))
+        mask = Mask(page)
 
     page.clean_contents()
 
@@ -157,8 +156,7 @@ def get_ocr_lines(
     draw_lines = []
     processed_rects = []
     vertical_detected = False
-    sorted_lines = sort_lines(text_lines)
-    for reading_order_block in sorted_lines:
+    for reading_order_block in sort_lines(text_lines):
         line_confidence_values = [line.confidence for line in reading_order_block.lines]
         avg_confidence = sum(line_confidence_values) / len(line_confidence_values)
         if avg_confidence < confidence_threshold:

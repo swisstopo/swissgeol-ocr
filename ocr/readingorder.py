@@ -3,7 +3,8 @@ from dataclasses import dataclass
 import pymupdf
 
 from ocr.textline import TextLine
-from ocr.util import x_overlap
+from ocr.util import x_overlap, fast_intersection
+
 
 class ReadingOrderBlock:
     def __init__(self, lines: list[TextLine]):
@@ -101,7 +102,7 @@ class ReadingOrderColumn:
 
     def is_interrupted_by(self, rect: pymupdf.Rect) -> bool:
         y_middle = (rect.y0 + rect.y1) / 2
-        return rect.intersects(self.rect) and self.bottom_of_first_line < y_middle < self.top_of_last_line
+        return fast_intersection(rect, self.rect) and self.bottom_of_first_line < y_middle < self.top_of_last_line
 
     def can_be_extended_by(self, geometry: ReadingOrderGeometry) -> bool:
         column_width = self.rect.width

@@ -122,9 +122,7 @@ class Processor:
 
         mask = Mask(new_page)
         if self.use_aggressive_strategy:
-            print("ho")
             mask = clean_old_ocr_aggressive(new_page)
-            print("ha")
         else:
             if not digitally_born:
                 clean_old_ocr(new_page)

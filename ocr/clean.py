@@ -1,4 +1,6 @@
 import pymupdf
+from ocr.mask import Mask
+
 
 def clean_old_ocr(page: pymupdf.Page):
     bboxes = page.get_bboxlog()
@@ -16,30 +18,35 @@ def clean_old_ocr(page: pymupdf.Page):
         print("  {} boxes removed".format(counter))
 
 
-def clean_old_ocr_aggressive(page: pymupdf.Page) -> list[pymupdf.Rect]:
+def clean_old_ocr_aggressive(page: pymupdf.Page) -> Mask:
     """
     Also cleans "fill-text" and "stroke-text" areas that are completely covered by some image.
 
-    Returns a list of Rects that bound text that is still (potentially partially) visible, and where no OCR should be
-    applied.
+    Returns a 2D matrix "mask", with dimensions corresponding to page.rect (rounded to the nearest integer). A value of
+    the mask equals 1 if on that location on the page there is text that is still (potentially partially) visible, and
+    where no OCR should be applied. Otherwise, the value will be 1.
     """
     bboxes = page.get_bboxlog()
 
+    mask = Mask(page)
     possibly_visible_text = []
+
     invisible_text = []
     for boxType, rectangle in bboxes:
         rect = pymupdf.Rect(rectangle)
         if boxType == "ignore-text":
             # Some digitally-born documents (e.g. ZH 267124198-bp.pdf) draw the text using fill-path elements and then
             # add `ignore-text` to make the text searchable/selectable. We don't want to remove these.
-            if all(not rect.intersects(visible) for visible in possibly_visible_text):
+            if not mask.intersects(rect):
                 invisible_text.append(rect)
         # Empty rectangle that should be ignored occurs sometimes, e.g. SwissGeol 44191 page 37.
         if (boxType == "fill-text" or boxType == "stroke-text" or boxType == "fill-path") and not rect.is_empty:
+            mask.add_rect(rect)
             possibly_visible_text.append(rect)
         if boxType == "fill-image":
             invisible_text.extend([text_rect for text_rect in possibly_visible_text if rect.contains(text_rect)])
             possibly_visible_text = [text_rect for text_rect in possibly_visible_text if not rect.contains(text_rect)]
+            mask.remove_rect(rect)
 
     counter = 0
     for rect in invisible_text:
@@ -55,4 +62,4 @@ def clean_old_ocr_aggressive(page: pymupdf.Page) -> list[pymupdf.Rect]:
     if len(possibly_visible_text):
         print("  {} boxes preserved".format(len(possibly_visible_text)))
 
-    return possibly_visible_text
+    return mask

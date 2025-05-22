@@ -1,5 +1,6 @@
 import pymupdf
 
+from ocr import Mask
 from ocr.crop import downscale_images_x2
 from ocr.readingorder import sort_lines
 from ocr.textline import TextLine
@@ -8,6 +9,7 @@ from mypy_boto3_textract import TextractClient as Textractor
 from uuid import uuid4
 from pathlib import Path
 import os
+import numpy as np
 
 
 def process_page(
@@ -16,10 +18,10 @@ def process_page(
         extractor: Textractor,
         tmp_path_prefix: str,
         confidence_threshold: float,
-        ignore_rects: list[pymupdf.Rect] | None = None
+        mask: np.ndarray | None = None
 ):
-    if ignore_rects is None:
-        ignore_rects = []
+    if mask is None:
+        mask = np.zeros((round(page.rect.width), round(page.rect.height)))
 
     page.clean_contents()
 
@@ -46,7 +48,7 @@ def process_page(
             textractor=extractor,
             confidence_threshold=confidence_threshold,
             textract_doc_path=textract_doc_path,
-            ignore_rects=ignore_rects,
+            mask=mask,
             tmp_path_prefix=tmp_path_prefix
         )
         lines_to_draw = page_ocr.apply_ocr(clip_rect=page.rect)
@@ -64,7 +66,7 @@ class OCR:
             textractor: Textractor,
             confidence_threshold: float,
             textract_doc_path: Path,
-            ignore_rects: list[pymupdf.Rect],
+            mask: Mask,
             tmp_path_prefix: str
     ):
         self.textractor = textractor
@@ -73,7 +75,7 @@ class OCR:
         self.textract_doc_path = textract_doc_path
         with pymupdf.Document(textract_doc_path) as doc:
             self.page_rect = doc[0].rect
-        self.ignore_rects = ignore_rects
+        self.mask = mask
         self.tmp_path_prefix = tmp_path_prefix
 
     @staticmethod
@@ -106,7 +108,7 @@ class OCR:
 
     def apply_vertical_check(self, text_lines: list[TextLine], clip_rect: pymupdf.Rect):
         lines_to_draw, processed_rects, vertical_detected = (
-            get_ocr_lines(text_lines, self.ignore_rects, self.confidence_threshold, detect_vertical=True)
+            get_ocr_lines(text_lines, self.mask, self.confidence_threshold, detect_vertical=True)
         )
 
         if vertical_detected:
@@ -122,7 +124,7 @@ class OCR:
                     doc.saveIncr()
             vertical_text_lines = self._ocr_text_lines(clip_rect, rotate=90)
             vertical_draw_lines, _, _ = (
-                get_ocr_lines(vertical_text_lines, self.ignore_rects, self.confidence_threshold, detect_vertical=False)
+                get_ocr_lines(vertical_text_lines, self.mask, self.confidence_threshold, detect_vertical=False)
             )
             lines_to_draw.extend(vertical_draw_lines)
         return lines_to_draw
@@ -148,14 +150,15 @@ class OCR:
 
 def get_ocr_lines(
         text_lines: list[TextLine],
-        ignore_rects: list[pymupdf.Rect],
+        mask: Mask,
         confidence_threshold: float,
         detect_vertical: bool = True
 ) -> (list[TextLine], list[pymupdf.Rect], bool):
     draw_lines = []
     processed_rects = []
     vertical_detected = False
-    for reading_order_block in sort_lines(text_lines):
+    sorted_lines = sort_lines(text_lines)
+    for reading_order_block in sorted_lines:
         line_confidence_values = [line.confidence for line in reading_order_block.lines]
         avg_confidence = sum(line_confidence_values) / len(line_confidence_values)
         if avg_confidence < confidence_threshold:
@@ -167,7 +170,7 @@ def get_ocr_lines(
             line_confidence_threshold = avg_confidence / 2
 
         for line in reading_order_block.lines:
-            if not any(line.rect.intersects(ignore_rect) for ignore_rect in ignore_rects):
+            if not mask.intersects(line.rect):
                 if detect_vertical:
                     if line.rect.height > line.rect.width and len(line.text) > 2:
                         vertical_detected = True

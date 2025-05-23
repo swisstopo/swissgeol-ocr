@@ -23,9 +23,9 @@ def clean_old_ocr_aggressive(page: pymupdf.Page) -> Mask:
     """
     Also cleans "fill-text" and "stroke-text" areas that are completely covered by some image.
 
-    Returns a 2D matrix "mask", with dimensions corresponding to page.rect (rounded to the nearest integer). A value of
+    Returns a "mask", a 2D matrix with dimensions corresponding to page.rect (rounded to the nearest integer). An entry in
     the mask equals 1 if on that location on the page there is text that is still (potentially partially) visible, and
-    where no OCR should be applied. Otherwise, the value will be 1.
+    where no OCR should be applied. Otherwise, the value will be 0, and OCR can be (re)applied here.
     """
     bboxes = page.get_bboxlog()
 

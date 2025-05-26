@@ -21,9 +21,9 @@ def two_columns_doc(pdf_dir):
     page = doc.new_page()
 
     rect_intro = pymupdf.Rect(0, 0, 500, 100)
-    rect_left = pymupdf.Rect(30, 30, 230, 300)
-    rect_right = pymupdf.Rect(270, 30, 500, 300)
-    rect_page_number = pymupdf.Rect(200, 200, 220, 220)
+    rect_left = pymupdf.Rect(30, 30, 230, 125)
+    rect_right = pymupdf.Rect(270, 30, 500, 125)
+    rect_page_number = pymupdf.Rect(200, 125, 300, 160)
     page.insert_textbox(rect_intro, (
         "Das Bundesamt für Landestopografie swisstopo ist das Geoinformationszentrum der Schweiz."
     ), align=TEXT_ALIGN_CENTER)

@@ -105,20 +105,21 @@ class ReadingOrderColumn:
         return fast_intersection(rect, self.rect) and self.bottom_of_first_line < y_middle < self.top_of_last_line
 
     def can_be_extended_by(self, geometry: ReadingOrderGeometry) -> bool:
-        column_width = self.rect.width
-        min_x = self.rect.x0 - 0.1 * column_width
-        max_x = self.rect.x1 + 0.1 * column_width
         return (
             geometry.y_middle > self.top_of_last_line and  # below this column
-            geometry.rect.y0 - self.rect.y1 < self.rect.height and  # not too far below this column
-            geometry.rect.x0 > min_x and
-            geometry.rect.x1 < max_x and
-            # a narrow text line at the left/right edge of this column should not be accepted
-            x_overlap(self.rect, geometry.rect) > 0.8 * geometry.rect.width
+            geometry.rect.y0 - self.rect.y1 < (self.rect.height + geometry.rect.height) and  # not too far below this column
+            (
+                # a narrow text line at the left/right edge of this column should not be accepted
+                x_overlap(self.rect, geometry.rect) > 0.8 * geometry.rect.width or
+                # a line making the column wider should be accepted
+                x_overlap(self.rect, geometry.rect) > 0.9 * self.rect.width
+            )
         )
 
     def is_accurately_extended_by(self, geometry: ReadingOrderGeometry) -> bool:
-        return self.can_be_extended_by(geometry) and x_overlap(self.rect, geometry.rect) > 0.8 * self.rect.width and (
+        return self.can_be_extended_by(geometry) and (
+            x_overlap(self.rect, geometry.rect) > 0.6 * max(self.rect.width, geometry.rect.width)
+        ) and (
             self.rect.y1 < geometry.rect.y1  #strictly below
         )
 

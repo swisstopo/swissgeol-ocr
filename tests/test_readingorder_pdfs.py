@@ -16,17 +16,16 @@ def _create_line(rect: pymupdf.Rect, text: str) -> TextLine:
 
 @pytest.fixture
 def two_columns_doc(pdf_dir):
+    # Test case inspired by Asset 11806.pdf page 2.
     doc = pymupdf.Document()
     page = doc.new_page()
 
-    rect_intro = pymupdf.Rect(0, 0, 440, 100)
-    rect_left = pymupdf.Rect(0, 100, 200, 300)
-    rect_right = pymupdf.Rect(240, 100, 440, 300)
+    rect_intro = pymupdf.Rect(0, 0, 500, 100)
+    rect_left = pymupdf.Rect(30, 30, 230, 300)
+    rect_right = pymupdf.Rect(270, 30, 500, 300)
     rect_page_number = pymupdf.Rect(200, 200, 220, 220)
     page.insert_textbox(rect_intro, (
-        "Das Bundesamt für Landestopografie swisstopo ist das Geoinformationszentrum der Schweiz. Bei uns dreht sich "
-        "alles - oder fast alles - um Geodaten. Wir teilen dieses Wissen auf offene, transparente und "
-        "wiederverwendbare Weise, damit es für die Bevölkerung, Unternehmen oder Behörden zugänglich ist."
+        "Das Bundesamt für Landestopografie swisstopo ist das Geoinformationszentrum der Schweiz."
     ), align=TEXT_ALIGN_CENTER)
     # Left-most column should be extracted first, even when the right-most column is inserted beforehand.
     page.insert_textbox(rect_right, (
@@ -56,9 +55,7 @@ def test_sort_lines(two_columns_doc):
 
     text = " ".join([line.text for block in sort_lines(lines) for line in block.lines])
     assert text == (
-        "Das Bundesamt für Landestopografie swisstopo ist das Geoinformationszentrum der Schweiz. Bei uns dreht sich "
-        "alles - oder fast alles - um Geodaten. Wir teilen dieses Wissen auf offene, transparente und "
-        "wiederverwendbare Weise, damit es für die Bevölkerung, Unternehmen oder Behörden zugänglich ist. "
+        "Das Bundesamt für Landestopografie swisstopo ist das Geoinformationszentrum der Schweiz. "
         "Die Landesgeologie von swisstopo ist das Kompetenzzentrum des Bundes für die Erhebung, Analyse, Lagerung "
         "und Bereitstellung geologischer Daten von nationalem Interesse. Sie erarbeitet geologische Grundlagendaten, "
         "2D- und 3D-Modelle und leitet das unterirdische Forschungslabor Mont Terri in St-Ursanne. 1"

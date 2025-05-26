@@ -149,12 +149,13 @@ class ReadingOrderColumn:
                 break
 
             new_accurate_extension_count = sum(
-                1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
+                1 for line in other_lines if new_column.is_accurately_extended_by(line.geometry)
             )
             if new_accurate_extension_count < accurate_extension_count:
                 # If we have fewer lines down below that accurately extend the current column, then we stop the loop
                 # and return the last column (with more lines down below that accurately extend).
                 break
+            accurate_extension_count = new_accurate_extension_count
 
             column = new_column
 

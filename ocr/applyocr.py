@@ -157,30 +157,35 @@ def get_ocr_lines(
     processed_rects = []
     vertical_detected = False
     for reading_order_block in sort_lines(text_lines):
-        line_confidence_values = [line.confidence for line in reading_order_block.lines]
-        avg_confidence = sum(line_confidence_values) / len(line_confidence_values)
-        if avg_confidence < confidence_threshold:
-            # if the block has a low overall confidence (e.g. handwritten text) then individual lines are only included
-            # when they have a very high confidence.
-            line_confidence_threshold = (1 + confidence_threshold) / 2
+        if detect_vertical:
+            non_vertical_lines = [
+                line for line in reading_order_block.lines
+                if line.rect.height <= line.rect.width or len(line.text) <= 2
+            ]
         else:
-            # otherwise, we are flexible and allow anything that is not too far below the avg confidence
-            line_confidence_threshold = avg_confidence / 2
+            non_vertical_lines = reading_order_block.lines
 
-        for line in reading_order_block.lines:
-            if not mask.intersects(line.rect):
-                if detect_vertical:
-                    if line.rect.height > line.rect.width and len(line.text) > 2:
-                        vertical_detected = True
-                    else:
-                        if line.confidence > line_confidence_threshold:
-                            processed_rects.append(line.rect)
-                            draw_lines.append(line)
-                        elif line.rect.width > line.rect.height and len(line.text) > 2:
-                            # consider a clearly horizontal rect to be processed, even if the confidence is low
-                            processed_rects.append(line.rect)
-                else:
+        if len(non_vertical_lines) < len(reading_order_block.lines):
+            vertical_detected = True
+
+        if len(non_vertical_lines):
+            line_confidence_values = [line.confidence for line in non_vertical_lines]
+            avg_confidence = sum(line_confidence_values) / len(line_confidence_values)
+            if avg_confidence < confidence_threshold:
+                # if the block has a low overall confidence (e.g. handwritten text) then individual lines are only included
+                # when they have a very high confidence.
+                line_confidence_threshold = (1 + confidence_threshold) / 2
+            else:
+                # otherwise, we are flexible and allow anything that is not too far below the avg confidence
+                line_confidence_threshold = avg_confidence / 2
+
+            for line in non_vertical_lines:
+                if not mask.intersects(line.rect):
                     if line.confidence > line_confidence_threshold:
+                        processed_rects.append(line.rect)
                         draw_lines.append(line)
+                    elif line.rect.width > line.rect.height and len(line.text) > 2:
+                        # consider a clearly horizontal rect to be processed, even if the confidence is low
+                        processed_rects.append(line.rect)
 
     return draw_lines, processed_rects, vertical_detected

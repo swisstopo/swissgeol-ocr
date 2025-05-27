@@ -30,6 +30,7 @@ def fast_intersection(rect1: pymupdf.Rect, rect2: pymupdf.Rect) -> bool:
     """Returns whether there is a non-empty intersection between both given rectangles.
 
     A significantly faster implementation compared to the pymupdf method Rect.intersects().
+    See also https://github.com/pymupdf/PyMuPDF/issues/4527.
 
     Args:
         rect1 (pymupdf.Rect): First rectangle.

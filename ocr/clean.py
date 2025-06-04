@@ -1,6 +1,5 @@
 import pymupdf
 from ocr.mask import Mask
-from ocr.util import fast_intersection
 
 
 def clean_old_ocr(page: pymupdf.Page):
@@ -40,6 +39,20 @@ def clean_old_ocr_aggressive(page: pymupdf.Page) -> Mask:
             # add `ignore-text` to make the text searchable/selectable. We don't want to remove these.
             if not mask.intersects(rect):
                 invisible_text.add(rect)
+            else:
+                # In some scanned documents, every word is put into a separate image in the PDF file, e.g. Zurich
+                # borehole profile 269126062-bp.pdf. The word's image might be slightly smaller than the bounding box
+                # of the word as detected by OCR. For this reason, we check again using a version of the word's
+                # bounding box that is shrunk by 10% on every side, and we also allow up to 20% overlap with the mask.
+                shrunk_rect = pymupdf.Rect(
+                    rect.x0 + 0.1 * rect.width,
+                    rect.y0 + 0.1 * rect.height,
+                    rect.x1 - 0.1 * rect.width,
+                    rect.y1 - 0.1 * rect.height
+                )
+                if mask.coverage_ratio(shrunk_rect) < 0.2:
+                    invisible_text.add(rect)
+
         # Empty rectangle that should be ignored occurs sometimes, e.g. SwissGeol 44191 page 37.
         if (boxType == "fill-text" or boxType == "stroke-text" or boxType == "fill-path") and not rect.is_empty:
             mask.add_rect(rect)

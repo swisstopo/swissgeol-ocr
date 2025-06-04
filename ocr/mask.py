@@ -17,3 +17,7 @@ class Mask:
 
     def intersects(self, rect: pymupdf.Rect) -> bool:
         return np.any(self._submask(rect))
+
+    def coverage_ratio(self, rect: pymupdf.Rect) -> float:
+        submask = self._submask(rect)
+        return np.sum(submask) / np.size(submask)

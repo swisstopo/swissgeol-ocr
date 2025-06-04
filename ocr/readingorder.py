@@ -3,7 +3,8 @@ from dataclasses import dataclass
 import pymupdf
 
 from ocr.textline import TextLine
-from ocr.util import x_overlap
+from ocr.util import x_overlap, fast_intersection
+
 
 class ReadingOrderBlock:
     def __init__(self, lines: list[TextLine]):
@@ -101,23 +102,24 @@ class ReadingOrderColumn:
 
     def is_interrupted_by(self, rect: pymupdf.Rect) -> bool:
         y_middle = (rect.y0 + rect.y1) / 2
-        return rect.intersects(self.rect) and self.bottom_of_first_line < y_middle < self.top_of_last_line
+        return fast_intersection(rect, self.rect) and self.bottom_of_first_line < y_middle < self.top_of_last_line
 
     def can_be_extended_by(self, geometry: ReadingOrderGeometry) -> bool:
-        column_width = self.rect.width
-        min_x = self.rect.x0 - 0.1 * column_width
-        max_x = self.rect.x1 + 0.1 * column_width
         return (
             geometry.y_middle > self.top_of_last_line and  # below this column
-            geometry.rect.y0 - self.rect.y1 < self.rect.height and  # not too far below this column
-            geometry.rect.x0 > min_x and
-            geometry.rect.x1 < max_x and
-            # a narrow text line at the left/right edge of this column should not be accepted
-            x_overlap(self.rect, geometry.rect) > 0.8 * geometry.rect.width
+            geometry.rect.y0 - self.rect.y1 < (self.rect.height + geometry.rect.height) and  # not too far below this column
+            (
+                # a narrow text line at the left/right edge of this column should not be accepted
+                x_overlap(self.rect, geometry.rect) > 0.8 * geometry.rect.width or
+                # a line making the column wider should be accepted
+                x_overlap(self.rect, geometry.rect) > 0.9 * self.rect.width
+            )
         )
 
     def is_accurately_extended_by(self, geometry: ReadingOrderGeometry) -> bool:
-        return self.can_be_extended_by(geometry) and x_overlap(self.rect, geometry.rect) > 0.8 * self.rect.width and (
+        return self.can_be_extended_by(geometry) and (
+            x_overlap(self.rect, geometry.rect) > 0.6 * max(self.rect.width, geometry.rect.width)
+        ) and (
             self.rect.y1 < geometry.rect.y1  #strictly below
         )
 
@@ -148,12 +150,13 @@ class ReadingOrderColumn:
                 break
 
             new_accurate_extension_count = sum(
-                1 for line in other_lines if column.is_accurately_extended_by(line.geometry)
+                1 for line in other_lines if new_column.is_accurately_extended_by(line.geometry)
             )
             if new_accurate_extension_count < accurate_extension_count:
                 # If we have fewer lines down below that accurately extend the current column, then we stop the loop
                 # and return the last column (with more lines down below that accurately extend).
                 break
+            accurate_extension_count = new_accurate_extension_count
 
             column = new_column
 

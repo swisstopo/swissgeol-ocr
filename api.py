@@ -2,11 +2,13 @@ import logging
 import os
 import shutil
 import uuid
+import random
 from typing import Annotated
 
 from fastapi import FastAPI, Depends, status, HTTPException, BackgroundTasks, Response
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
+from pathlib import Path
 
 import ocr
 from aws import aws
@@ -40,10 +42,11 @@ def start(
         )
 
     aws_client = aws.connect(settings)
-    has_file = aws_client.exists_file(
+    has_file = aws_client.exists_input_file(
         settings.s3_input_bucket,
         f'{settings.s3_input_folder}{payload.file}',
     )
+
     if not has_file:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -96,37 +99,39 @@ def process(
         aws_client: aws.Client,
         settings: Annotated[ApiSettings, Depends(api_settings)],
 ):
-    if settings.skip_processing:
-        # Sleep between 30 seconds to 2 minutes to simulate processing time.
-        # sleep(randint(30, 120))
-        return
-
     task_id = f"{uuid.uuid4()}"
-    tmp_dir = os.path.join(settings.tmp_path, task_id)
+    tmp_dir = Path(settings.tmp_path) / task_id
     os.makedirs(tmp_dir, exist_ok=True)
 
-    input_path = os.path.join(tmp_dir, "input.pdf")
-    output_path = os.path.join(tmp_dir, "output.pdf")
+    input_path = tmp_dir / "input.pdf"
+    output_path = tmp_dir / "output.pdf"
 
     aws.load_file(
-        aws_client.bucket(settings.s3_input_bucket),
+        aws_client.s3_input.Bucket(settings.s3_input_bucket),
         f'{settings.s3_input_folder}{payload.file}',
-        input_path,
+        str(input_path),
     )
 
-    ocr.process(
-        input_path,
-        output_path,
-        tmp_dir,
-        aws_client.textract,
-        settings.confidence_threshold,
-        settings.use_aggressive_strategy,
-    )
+    if settings.skip_processing:
+        # fake results from OCR processing and override output_path with input_path to replace file with metadata
+        process_result = ocr.ProcessResult(random.choice([None] + list(range(1, 51))))
+        output_path = input_path
+    else:
+        process_result = ocr.Processor(
+            input_path=input_path,
+            debug_page=None,
+            output_path=output_path,
+            tmp_dir=tmp_dir,
+            textractor=aws_client.textract,
+            confidence_threshold=settings.confidence_threshold,
+            use_aggressive_strategy=settings.use_aggressive_strategy,
+        ).process()
 
     aws.store_file(
-        aws_client.bucket(settings.s3_output_bucket),
+        aws_client.s3_output.Bucket(settings.s3_output_bucket),
         f'{settings.s3_output_folder}{payload.file}',
-        output_path,
+        str(output_path),
+        process_result
     )
 
     shutil.rmtree(tmp_dir)

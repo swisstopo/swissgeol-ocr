@@ -1,6 +1,6 @@
 amazon-textract-textractor
 backoff
-pymupdf
+pymupdf >= 1.25.1
 reportlab
 python-dotenv
 python-multipart
@@ -10,3 +10,5 @@ fastapi[standard]
 boto3-stubs[essentials]
 boto3-stubs[s3]
 boto3-stubs[textract]
+pytest
+numpy

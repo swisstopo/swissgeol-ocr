@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Protocol
 
 import boto3
 from botocore.exceptions import ClientError
@@ -6,22 +7,30 @@ from mypy_boto3_s3 import S3ServiceResource
 from mypy_boto3_s3.service_resource import Bucket
 from mypy_boto3_textract import TextractClient as Textractor
 
+from ocr import ProcessResult
 from utils.settings import ApiSettings
 
 type S3Bucket = any
+type S3ObjectMetadata = dict[str, str]
+
+
+class SupportsStr(Protocol):
+    def __str__(self) -> str: ...
+
+
+# note: AWS stores metadata keys in lower case per default
+METADATA_PAGE_COUNT_KEY = "pagecount"
 
 
 @dataclass
 class Client:
-    s3: S3ServiceResource
+    s3_input: S3ServiceResource
+    s3_output: S3ServiceResource
     textract: Textractor
 
-    def bucket(self, name: str) -> Bucket:
-        return self.s3.Bucket(name)
-
-    def exists_file(self, bucket_name: str, key: str) -> bool:
+    def exists_input_file(self, bucket_name: str, key: str) -> bool:
         try:
-            self.s3.Object(bucket_name, key).load()
+            self.s3_input.Object(bucket_name, key).load()
             return True
         except ClientError as e:
             if e.response['Error']['Code'] == '404':
@@ -38,9 +47,15 @@ def connect(settings: ApiSettings) -> Client:
     else:
         session = open_session_by_service_role()
 
+    if is_set(settings.textract_aws_profile):
+        textract_session = open_session_by_profile(settings.textract_aws_profile)
+    else:
+        textract_session = session
+
     return Client(
-        s3=session.resource('s3'),
-        textract=session.client('textract')
+        s3_input=session.resource('s3', endpoint_url=settings.s3_input_endpoint),
+        s3_output=session.resource('s3', endpoint_url=settings.s3_output_endpoint),
+        textract=textract_session.client('textract')
     )
 
 
@@ -60,5 +75,14 @@ def load_file(bucket: Bucket, key: str, local_path: str):
     bucket.download_file(key, local_path)
 
 
-def store_file(bucket: Bucket, key: str, local_path: str):
-    bucket.upload_file(local_path, key, ExtraArgs={'ContentType': 'application/pdf'})
+def store_file(bucket: Bucket, key: str, local_path: str, process_result: ProcessResult):
+    bucket.upload_file(local_path, key, ExtraArgs={
+        'ContentType': 'application/pdf',
+        'Metadata': {
+            **_parse_metadata(METADATA_PAGE_COUNT_KEY, process_result.number_of_pages)
+        }
+    })
+
+
+def _parse_metadata(key: str, value: SupportsStr | None) -> S3ObjectMetadata:
+    return {key: str(value)} if value else {}

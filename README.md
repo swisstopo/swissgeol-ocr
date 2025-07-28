@@ -1,9 +1,11 @@
 # swissgeol.ch OCR service
 
-Source code for the OCR scripts that are used at the Swiss [
-Federal Office of Topography swisstopo](https://www.swisstopo.admin.ch/)
-for digitising geological documents for internal use as well as for publication on
-the [swissgeol.ch](https://www.swissgeol.ch/) platform.
+Source code for the OCR scripts that are used at the Swiss [Federal Office of Topography swisstopo](
+https://www.swisstopo.admin.ch/) for digitising geological documents for internal use as well as for publication on the 
+[swissgeol.ch](https://www.swissgeol.ch/) platform, in particular to the  applications [assets.swissgeol.ch](
+https://assets.swissgeol.ch/) ([GitHub Repo](https://github.com/swisstopo/swissgeol-assets-suite)) and [
+boreholes.swissgeol.ch](https://boreholes.swissgeol.ch/) ([GitHub Repo](
+https://github.com/swisstopo/swissgeol-boreholes-suite)). 
 
 OCR processing is supported both in script form and as REST API.
 To process PDF files, the [AWS Textract](https://aws.amazon.com/de/textract/) service is called for each page.
@@ -26,8 +28,12 @@ Additional features:
   multiple requests. Indeed, AWS Textract has
   certain [limits on file size and page dimensions](https://docs.aws.amazon.com/textract/latest/dg/limits-document.html),
   and even within those limits, the quality of the results is better when the input dimensions are smaller.
+- Adds metadata to the object after processing, currently containing:
+  - `X-Amz-Meta-Pagecount`: The number of pages in the document if available, else the key is not set
 
 ## Installation
+
+Python 3.12 is required.
 
 Example using a virtual environment and `pip install`:
 
@@ -41,6 +47,12 @@ pip install -r requirements.txt
 The script can be executed like any normal Python script file:
 ```bash
 python main.py
+```
+
+To run the script while additionally appending all output to a log file, you can use the following command:
+
+```bash
+python -u main.py | tee output.log 
 ```
 
 The API is built on [FastAPI](https://fastapi.tiangolo.com/) and can be run by its CLI:
@@ -59,6 +71,9 @@ For example, run the script as `OCR_PROFILE=assets python -m main` to use the en
 
 > The API and Script require different configurations.
 > Please ensure that you are using the correct environment variables depending on what you want to execute.
+
+When setting the environment variable `INPUT_DEBUG_PAGE` to a particular page number, the pipeline will only process 
+that page, and additional create a version of the page with only the OCR layer (with visible text).
 
 ### Script Configuration
 
@@ -80,7 +95,7 @@ INPUT_TYPE=S3
 INPUT_AWS_PROFILE=s3-assets
 INPUT_S3_BUCKET=swissgeol-assets-swisstopo
 INPUT_S3_PREFIX=asset/asset_files/
-INPUT_IGNORE_EXISTING=TRUE
+INPUT_SKIP_EXISTING=TRUE
 
 OUTPUT_TYPE=S3
 OUTPUT_AWS_PROFILE=s3-assets
@@ -128,9 +143,14 @@ AWS_PROFILE=swisstopo-ngm
 # AWS_ACCESS_KEY=
 # AWS_SECRET_ACCESS_KEY=
 
+# During local development, an S3-compatible service like MinIO (https://min.io/) can be used.
+# In this case, the endpoint will look like `http://minio:9000`.
+# Note that if MinIO is used, you still need to configure AWS_DEFAULT_REGION if none is set in your AWS credentials.
+S3_INPUT_ENDPOINT=https://s3.eu-central-1.amazonaws.com
 S3_INPUT_BUCKET=swissgeol-assets-swisstopo
 S3_INPUT_FOLDER=asset_files/
 
+S3_OUTPUT_ENDPOINT=https://s3.eu-central-1.amazonaws.com
 S3_OUTPUT_BUCKET=swissgeol-assets-swisstopo
 S3_OUTPUT_FOLDER=new_ocr_output/
 

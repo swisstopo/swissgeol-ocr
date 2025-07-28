@@ -15,11 +15,14 @@ class SharedSettings(BaseSettings):
 
 class ApiSettings(SharedSettings):
     aws_profile: str | None = None
+    textract_aws_profile: str | None = None
     skip_processing: bool = False
 
+    s3_input_endpoint: str | None = None
     s3_input_bucket: str
     s3_input_folder: str
 
+    s3_output_endpoint: str | None = None
     s3_output_bucket: str
     s3_output_folder: str
 
@@ -34,7 +37,8 @@ class ScriptSettings(SharedSettings):
     input_aws_profile: str | None = None
     input_s3_bucket: str | None = None
     input_s3_prefix: str | None = None
-    input_ignore_existing: bool
+    input_skip_existing: bool
+    input_debug_page: int | None = None
 
     output_type: Literal['path', 's3']
     output_path: str | None = None

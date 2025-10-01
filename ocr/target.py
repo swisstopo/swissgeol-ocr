@@ -1,4 +1,5 @@
 import os
+import shutil
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,10 +15,6 @@ class AssetTarget:
         pass
 
     @abstractmethod
-    def local_path(self, item: AssetItem) -> Path:
-        pass
-
-    @abstractmethod
     def existing_filenames(self) -> set[str]:
         pass
 
@@ -27,10 +24,7 @@ class FileAssetTarget(AssetTarget):
     out_path: Path
 
     def save(self, item: AssetItem, process_result: ProcessResult):
-        pass
-
-    def local_path(self, item: AssetItem) -> Path:
-        return Path(self.out_path, item.filename)
+        shutil.move(item.result_tmp_path, Path(self.out_path, item.filename))
 
     def existing_filenames(self) -> set[str]:
         return {
@@ -49,12 +43,9 @@ class S3AssetTarget(AssetTarget):
         aws.store_file(
             bucket=self.s3_bucket,
             key=self.s3_prefix + item.filename,
-            local_path=str(self.local_path(item)),
+            local_path=str(item.result_tmp_path),
             process_result=process_result
         )
-
-    def local_path(self, item: AssetItem) -> Path:
-        return item.tmp_path / ("new_" + item.filename)
 
     def existing_filenames(self) -> set[str]:
         return {

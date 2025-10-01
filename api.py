@@ -119,8 +119,8 @@ def process(
     else:
         process_result = ocr.Processor(
             input_path=input_path,
-            debug_page=None,
             output_path=output_path,
+            debug_page=None,
             tmp_dir=tmp_dir,
             textractor=aws_client.textract,
             confidence_threshold=settings.confidence_threshold,

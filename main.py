@@ -44,7 +44,6 @@ def load_source(settings: ScriptSettings, target: AssetTarget):
         return S3AssetSource(
             s3_bucket=s3.Bucket(settings.input_s3_bucket),
             s3_prefix=settings.input_s3_prefix,
-            allow_override=False,
             skip_filenames=skip_filenames,
             tmp_dir=Path(settings.tmp_path)
         )

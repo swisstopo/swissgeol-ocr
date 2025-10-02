@@ -1,16 +1,19 @@
+import io
+
 import pymupdf
 from pymupdf.mupdf import FzErrorFormat
 
 
 def rotation_from_transform_matrix(transform: pymupdf.Matrix) -> int | None:
-    if abs(transform.b) < pymupdf.EPSILON and abs(transform.c) < pymupdf.EPSILON:
-        if abs(transform.a) > pymupdf.EPSILON and abs(transform.d) > pymupdf.EPSILON:
+    epsilon = 1e-4
+    if abs(transform.b) < epsilon and abs(transform.c) < epsilon:
+        if abs(transform.a) > epsilon and abs(transform.d) > epsilon:
             if transform.a > 0 and transform.d > 0:
                 return 0
             if transform.a < 0 and transform.d < 0:
                 return 180
-    if abs(transform.a) < pymupdf.EPSILON and abs(transform.d) < pymupdf.EPSILON:
-        if abs(transform.b) > pymupdf.EPSILON and abs(transform.c) > pymupdf.EPSILON:
+    if abs(transform.a) < epsilon and abs(transform.d) < epsilon:
+        if abs(transform.b) > epsilon and abs(transform.c) > epsilon:
             if transform.b > 0 > transform.c:
                 return 90
             if transform.b < 0 < transform.c:
@@ -27,12 +30,21 @@ def crop_images(out_doc: pymupdf.Document, page_index: int):
         print("  Skipping page because rotation is not 0 but {}.".format(page.rotation))
         return
 
-    for dict in page.get_image_info(xrefs=True):
-        xref = dict["xref"]
-        if dict["width"] == 1 and dict["height"] == 1:
-            # Ignore the 1x1 dummy image that is added by the PyMuPDF Page.delete_image method; see LGD-579
-            continue
+    images = [
+        dict
+        for dict in page.get_image_info(xrefs=True)
+        # Ignore the 1x1 dummy image that is added by the PyMuPDF Page.delete_image method; see LGD-579
+        if dict["width"] > 1 or dict["height"] > 1
+    ]
 
+    if len(images) > 1:
+        # Skip because we cannot reliably deal with overlapping images (e.g. their order might change if we crop and
+        # replace one image but not the other, e.g. CHA0ECFE2F3FFE47728C76619E_01_profil.pdf).
+        print("  More than one image on the page, skipping image crop.")
+        return
+
+    for dict in images:
+        xref = dict["xref"]
         try:
             img_size = pymupdf.Matrix(dict["width"], dict["height"])
             extracted_img = out_doc.extract_image(xref)
@@ -67,6 +79,9 @@ def crop_images(out_doc: pymupdf.Document, page_index: int):
                     print("  Image rotation could not be computed from transform matrix. Skipping image.")
                     continue
 
+                insert_image_location = pymupdf.Rect(page.rect)
+                insert_image_location.intersect(image_bbox)
+
                 transform_inv = pymupdf.Matrix(transform)
                 transform_inv.invert()
 
@@ -74,25 +89,32 @@ def crop_images(out_doc: pymupdf.Document, page_index: int):
                 # bbox / transform == pymupdf.Rect(0, 0, 1, 1) is true.
                 # Consequently, by multiplying page.rect with transform^-1 and scaling to the image size, we get the visible
                 # part of the page, measured in image pixel coordinates.
-                crop = pymupdf.Rect(page.rect)
+                crop = pymupdf.Rect(insert_image_location)
                 crop.transform(transform_inv)
                 crop.transform(img_size)
-
+                crop = crop.round()
                 img = _pixmap_from_xref(out_doc, xref)
-                cropped_image = pymupdf.Pixmap(img, int(img.width), int(img.height), crop.round())
-                cropped_image_bytes = cropped_image.tobytes(extension, jpg_quality=85)
-                if len(cropped_image_bytes) > 0.8 * dict["size"]:
-                    print("  Skipping crop as new image is not significantly smaller.")
+
+                # Concert to Pillow image for cropping, since cropping as PixMap causes uncontrollable caching in
+                # MyPDF, leading to memory leaks.
+                pillow_image = img.pil_image()
+                cropped_image = pillow_image.crop((crop.x0, crop.y0, crop.x1, crop.y1))
+                bytes_io = io.BytesIO()
+                cropped_image.save(bytes_io, extension, quality=85, optimize=True)
+                img_byte_arr = bytes_io.getvalue()
+
+                old_size = dict["size"]
+                new_size = len(img_byte_arr)
+                if len(img_byte_arr) > 0.8 * dict["size"]:
+                    print(f"  Skipping crop as new image is not significantly smaller ({old_size} -> {new_size} bytes).")
                     continue
+                else:
+                    print(f"  Cropped image is significantly smaller ({old_size} -> {new_size} bytes), replacing...")
 
                 page.delete_image(xref)
-
-                insert_image_location = pymupdf.Rect(page.rect)
-                insert_image_location.intersect(image_bbox)
-
                 page.insert_image(
                     insert_image_location,
-                    stream=cropped_image_bytes,
+                    stream=img_byte_arr,
                     rotate=-rotation
                 )
         except ValueError:
@@ -141,8 +163,13 @@ def downscale_images_x2(doc: pymupdf.Document, page_index: int):
 def _pixmap_from_xref(doc: pymupdf.Document, xref: int) -> pymupdf.Pixmap:
     try:
         img = pymupdf.Pixmap(doc, xref)
-        # Force the image into RGB color-space. Otherwise, colors might get distorted, e.g. in A8297.pdf.
-        # See also https://github.com/pymupdf/PyMuPDF/issues/725#issuecomment-730561405
-        return pymupdf.Pixmap(pymupdf.csRGB, img)
+
+        # Fix black-white inversion, e.g. for A8297.pdf.
+        if not img.colorspace:  # a stencil-only pixmap, see https://github.com/pymupdf/PyMuPDF/issues/3912
+            png = img.tobytes()  # convert it to a PNG
+            img = pymupdf.Pixmap(png)  # re-open from a memory PNG
+            img.invert_irect()  # invert the b&w pixmap
+
+        return img
     except FzErrorFormat:
         print("  Unsupported image format. Skipping image.")

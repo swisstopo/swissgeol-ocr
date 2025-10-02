@@ -34,16 +34,14 @@ class FileAssetItem(AssetItem):
 
 
 class S3AssetItem(AssetItem):
-    def __init__(self, s3_bucket: any, s3_key: str, allow_override: bool, tmp_dir: Path):
+    def __init__(self, s3_bucket: any, s3_key: str, tmp_dir: Path):
         self.s3_bucket = s3_bucket
         self.s3_key = s3_key
         self.filename = S3AssetItem.key_to_filename(self.s3_key)
-        self.allow_override = allow_override
         self.tmp_dir = tmp_dir / self.filename  # separate tmp dir per file
 
     def load(self):
-        if self.allow_override or not os.path.exists(self.tmp_path):
-            self.s3_bucket.download_file(self.s3_key, self.tmp_path)
+        self.s3_bucket.download_file(self.s3_key, self.tmp_path)
 
     @staticmethod
     def key_to_filename(key):
@@ -83,7 +81,6 @@ class FileAssetSource(AssetSource):
 class S3AssetSource(AssetSource):
     s3_bucket: any
     s3_prefix: str
-    allow_override: bool
     skip_filenames: set[str]
     tmp_dir: Path
 
@@ -94,7 +91,6 @@ class S3AssetSource(AssetSource):
             S3AssetItem(
                 s3_bucket=self.s3_bucket,
                 s3_key=obj.key,
-                allow_override=self.allow_override,
                 tmp_dir=self.tmp_dir
             )
             for obj in objs

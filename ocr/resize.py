@@ -21,7 +21,7 @@ def resize_page(doc: pymupdf.Document, page_index: int):
         tmp_page.show_pdf_page(tmp_page.rect, doc, page_index, rotate=-src_page_rotation)
 
         new_page = doc.new_page(page_index, tmp_page.rect.width, tmp_page.rect.height)
-        new_page.show_pdf_page(new_page.rect, tmp_doc, 0, rotate=-src_page_rotation)
+        new_page.show_pdf_page(new_page.rect, tmp_doc, 0)
 
         # We first insert the new page and only then delete the old one; this fixes an issue with 28957.pdf, where
         # we encountered the error "pymupdf.mupdf.FzErrorFormat: code=7: kid not found in parent's kids array".

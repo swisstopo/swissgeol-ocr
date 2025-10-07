@@ -96,7 +96,7 @@ def crop_images(out_doc: pymupdf.Document, page_index: int):
                 img = _pixmap_from_xref(out_doc, xref)
 
                 # Concert to Pillow image for cropping, since cropping as PixMap causes uncontrollable caching in
-                # MyPDF, leading to memory leaks.
+                # MuPDF, leading to memory leaks.
                 pillow_image = img.pil_image()
                 cropped_image = pillow_image.crop((crop.x0, crop.y0, crop.x1, crop.y1))
                 bytes_io = io.BytesIO()

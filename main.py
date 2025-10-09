@@ -44,7 +44,6 @@ def load_source(settings: ScriptSettings, target: AssetTarget):
         return S3AssetSource(
             s3_bucket=s3.Bucket(settings.input_s3_bucket),
             s3_prefix=settings.input_s3_prefix,
-            allow_override=False,
             skip_filenames=skip_filenames,
             tmp_dir=Path(settings.tmp_path)
         )
@@ -67,17 +66,16 @@ def main():
     source = load_source(settings, target)
 
     for asset_item in source.iterator():
-        os.makedirs(asset_item.tmp_path, exist_ok=True)
+        os.makedirs(asset_item.tmp_dir, exist_ok=True)
         asset_item.load()
-        out_path = target.local_path(asset_item)
 
         print()
         print(asset_item.filename)
         process_result = ocr.Processor(
-            asset_item.local_path,
-            settings.input_debug_page,
-            out_path,
             asset_item.tmp_path,
+            asset_item.result_tmp_path,
+            settings.input_debug_page,
+            asset_item.tmp_dir,
             extractor.textract_client,
             settings.confidence_threshold,
             settings.use_aggressive_strategy,
@@ -86,7 +84,7 @@ def main():
         target.save(asset_item, process_result)
 
         if settings.cleanup_tmp_files:
-            shutil.rmtree(asset_item.tmp_path)
+            shutil.rmtree(asset_item.tmp_dir)
 
 
 if __name__ == '__main__':

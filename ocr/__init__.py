@@ -24,8 +24,8 @@ class ProcessResult:
 @dataclasses.dataclass
 class Processor:
     input_path: Path
-    debug_page: int | None
     output_path: Path
+    debug_page: int | None
     tmp_dir: Path
     textractor: Textractor
     confidence_threshold: float
@@ -59,29 +59,23 @@ class Processor:
         Returns:
             int|None: number of pages in the output document if possible
         """
-        tmp_out_path = os.path.join(self.tmp_dir, f"output.incremental.pdf")
-        os.makedirs(self.tmp_dir, exist_ok=True)
+        doc = pymupdf.open(in_path)
+        in_page_count = doc.page_count
 
-        in_doc = pymupdf.open(in_path)
-        in_page_count = in_doc.page_count
-        in_doc.ez_save(tmp_out_path)
-
-        out_doc = pymupdf.open(tmp_out_path)
-
-        for page_index, new_page in enumerate(iter(in_doc)):
+        for page_index, _ in enumerate(iter(doc)):
             page_number = page_index + 1
             if not self.debug_page or page_number == self.debug_page:
                 print(f"{os.path.basename(in_path)}, page {page_number}/{in_page_count}")
-                self.process_page(in_doc, page_index, out_doc, add_debug_page=bool(self.debug_page))
+                self.process_page(page_index, doc, add_debug_page=bool(self.debug_page))
+                pymupdf.TOOLS.store_shrink(100)
 
         if self.debug_page:
             # only keep the debug page in its two versions (original + text-only)
-            out_doc.delete_pages(range(0, self.debug_page - 1))
-            out_doc.delete_pages(range(2, out_doc.page_count))
+            doc.delete_pages(range(0, self.debug_page - 1))
+            doc.delete_pages(range(2, doc.page_count))
 
-        out_doc.ez_save(self.output_path)
-        out_doc.close()
-        in_doc.close()
+        doc.ez_save(self.output_path)
+        doc.close()
 
         # Verify that we can read the written document, and that it still has the same number of pages. Some corrupt input
         # documents might lead to an empty or to a corrupt output document, sometimes even without throwing an error. (See
@@ -99,13 +93,12 @@ class Processor:
 
     def process_page(
         self,
-        in_doc: pymupdf.Document,
         page_index: int,
-        out_doc: pymupdf.Document,
+        doc: pymupdf.Document,
         add_debug_page: bool = False
     ):
         page_number = page_index + 1
-        digitally_born = is_digitally_born(in_doc[page_index])
+        digitally_born = is_digitally_born(doc[page_index])
 
         if not digitally_born:
             # We reload the page using doc[page_index] every time before calling page.get_image_info(), instead of
@@ -114,11 +107,11 @@ class Processor:
             # call is cached on the Page object, and this cache is not autmoatically cleared when modifying some of the
             # images (e.g. calling page.replace_image()). This has been reported as a bug on the PyMuPDF GitHub repo:
             # https://github.com/pymupdf/PyMuPDF/issues/4303
-            resize_page(in_doc, out_doc, page_index)
-            replace_jpx_images(out_doc, page_index)
-            crop_images(out_doc, page_index)
+            resize_page(doc, page_index)
+            replace_jpx_images(doc, page_index)
+            crop_images(doc, page_index)
 
-        new_page = out_doc[page_index]
+        new_page = doc[page_index]
 
         mask = Mask(new_page)
         if self.use_aggressive_strategy:
@@ -130,15 +123,15 @@ class Processor:
                 print(" Skipping digitally-born page.")
                 return
         tmp_path_prefix = os.path.join(self.tmp_dir, f"page{page_number}")
-        lines_to_draw = process_page(out_doc, new_page, self.textractor, tmp_path_prefix,
+        lines_to_draw = process_page(doc, new_page, self.textractor, tmp_path_prefix,
                                      self.confidence_threshold, mask)
 
         text_layer_path = os.path.join(self.tmp_dir, f"page{page_number}.pdf")
         draw_ocr_text_page(new_page, text_layer_path, lines_to_draw)
         if add_debug_page:
-            debug_page = out_doc.new_page(new_page.number + 1, new_page.rect.width, new_page.rect.height)
+            debug_page = doc.new_page(new_page.number + 1, new_page.rect.width, new_page.rect.height)
             draw_ocr_text_page(debug_page, text_layer_path, lines_to_draw, visible=True)
 
         # Only call saveIncr() when something actually changed, not for digitally-born pages. Otherwise, files like
         # Asset 39713.pdf cause problems.
-        out_doc.saveIncr()
+        doc.saveIncr()

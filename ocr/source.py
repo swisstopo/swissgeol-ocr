@@ -1,4 +1,5 @@
 import os
+import shutil
 from collections.abc import Iterator
 from abc import abstractmethod
 from dataclasses import dataclass
@@ -6,38 +7,41 @@ from pathlib import Path
 
 
 class AssetItem:
-    local_path: Path
-    tmp_path: Path
+    tmp_dir: Path
     filename: str
 
     @abstractmethod
     def load(self):
         pass
 
+    @property
+    def tmp_path(self):
+        return self.tmp_dir / self.filename
 
-@dataclass
+    @property
+    def result_tmp_path(self) -> Path:
+        return self.tmp_dir / ("new_" + self.filename)
+
+
 class FileAssetItem(AssetItem):
-    local_path: Path
-    filename: str
-    tmp_path: Path
+    def __init__(self, in_path: Path, tmp_dir: Path):
+        self.in_path = in_path
+        self.filename = os.path.basename(in_path)
+        self.tmp_dir = tmp_dir / self.filename  # separate tmp dir per file
 
     def load(self):
-        pass
+        shutil.copy(self.in_path, self.tmp_path)
 
-@dataclass
+
 class S3AssetItem(AssetItem):
-    s3_bucket: any
-    s3_key: str
-    allow_override: bool
-    tmp_path: Path
-
-    def __post_init__(self):
+    def __init__(self, s3_bucket: any, s3_key: str, tmp_dir: Path):
+        self.s3_bucket = s3_bucket
+        self.s3_key = s3_key
         self.filename = S3AssetItem.key_to_filename(self.s3_key)
-        self.local_path = self.tmp_path / self.filename
+        self.tmp_dir = tmp_dir / self.filename  # separate tmp dir per file
 
     def load(self):
-        if self.allow_override or not os.path.exists(self.local_path):
-            self.s3_bucket.download_file(self.s3_key, self.local_path)
+        self.s3_bucket.download_file(self.s3_key, self.tmp_path)
 
     @staticmethod
     def key_to_filename(key):
@@ -60,18 +64,16 @@ class FileAssetSource(AssetSource):
         if self.in_path.is_dir():
             return (
                 FileAssetItem(
-                    local_path=path,
-                    filename=os.path.basename(path),
-                    tmp_path=self.tmp_dir / os.path.basename(path)
+                    in_path=path,
+                    tmp_dir=self.tmp_dir
                 )
                 for path in sorted(self.in_path.glob("*"))
                 if os.path.basename(path).endswith(".pdf") and os.path.basename(path) not in self.skip_filenames
             )
         else:
             return iter([FileAssetItem(
-                local_path=self.in_path,
-                filename=os.path.basename(self.in_path),
-                tmp_path=self.tmp_dir / os.path.basename(self.in_path)
+                in_path=self.in_path,
+                tmp_dir=self.tmp_dir
             )])
 
 
@@ -79,7 +81,6 @@ class FileAssetSource(AssetSource):
 class S3AssetSource(AssetSource):
     s3_bucket: any
     s3_prefix: str
-    allow_override: bool
     skip_filenames: set[str]
     tmp_dir: Path
 
@@ -90,8 +91,7 @@ class S3AssetSource(AssetSource):
             S3AssetItem(
                 s3_bucket=self.s3_bucket,
                 s3_key=obj.key,
-                allow_override=self.allow_override,
-                tmp_path=self.tmp_dir / os.path.basename(S3AssetItem.key_to_filename(obj.key))
+                tmp_dir=self.tmp_dir
             )
             for obj in objs
             if obj.size

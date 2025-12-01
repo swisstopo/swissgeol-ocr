@@ -24,11 +24,10 @@ class TextLine:
         self.words = words
 
     @staticmethod
-    def from_textract(line: Line, rotate: float, page_height: float, transform: pymupdf.Matrix):
+    def from_textract(line: Line, page_height: float, transform: pymupdf.Matrix):
         """
 
         :param line:
-        :param rotate:
         :param page_height:
         :param transform: Matrix, based on rotation and clip rect, that transforms the Textract coordinates to the
                           PyMuPDF coordinates of the original page.
@@ -38,8 +37,7 @@ class TextLine:
 
         # assume rotation of first word applies to all words in the line
         first_word = line.words[0]
-        rotation_from_polygon = round(TextLine.__get_degree_from_polygon(first_word.geometry.polygon))
-        rotate = rotation_from_polygon - rotate
+        rotate = round(TextLine.__get_degree_from_polygon(first_word.geometry.polygon))
 
         derotator = GeometryDerotator(rotate, transform, page_height)
         derotated_rect, orientation = derotator.derotate(line.geometry)

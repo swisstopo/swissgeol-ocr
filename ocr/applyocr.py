@@ -83,7 +83,7 @@ class OCR:
 
     def apply_ocr(self, clip_rect: pymupdf.Rect):
         """Apply OCR with double page workaround"""
-        text_lines = self._ocr_text_lines(clip_rect, rotate=0)
+        text_lines = self._ocr_text_lines(clip_rect)
 
         if ((self.page_rect.height < MAX_DIMENSION_POINTS and self.page_rect.width < MAX_DIMENSION_POINTS) and (
                 len(text_lines) > 30
@@ -94,18 +94,18 @@ class OCR:
             page_rect = self.page_rect
 
             left_clip_rect = (page_rect * pymupdf.Matrix(0.5, 1))
-            left_text_lines = self._ocr_text_lines(left_clip_rect, rotate=0)
+            left_text_lines = self._ocr_text_lines(left_clip_rect)
             lines_to_draw = get_ocr_lines(left_text_lines, self.mask, self.confidence_threshold)
 
             right_clip_rect = (page_rect * pymupdf.Matrix(0.5, 1).pretranslate(page_rect.width, 0))
-            right_text_lines = self._ocr_text_lines(right_clip_rect, rotate=0)
+            right_text_lines = self._ocr_text_lines(right_clip_rect)
             lines_to_draw.extend(get_ocr_lines(right_text_lines, self.mask, self.confidence_threshold))
 
             return lines_to_draw
         else:
             return get_ocr_lines(text_lines, self.mask, self.confidence_threshold)
 
-    def _ocr_text_lines(self, clip_rect: pymupdf.Rect, rotate: float) -> list[TextLine]:
+    def _ocr_text_lines(self, clip_rect: pymupdf.Rect) -> list[TextLine]:
         text_lines = []
         final_clip_rects = clip_rects(clip_rect)
         for final_clip_rect in final_clip_rects:
@@ -113,8 +113,7 @@ class OCR:
                 self.textract_doc_path,
                 self.textractor,
                 self.tmp_file_path(self.tmp_path_prefix, "pdf"),
-                final_clip_rect,
-                rotate
+                final_clip_rect
             )
             text_lines = combine_text_lines(text_lines, new_lines)
         return text_lines

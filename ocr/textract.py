@@ -19,35 +19,22 @@ from ocr.readingorder import TextLine
 MAX_DIMENSION_POINTS = 2000
 
 
-def textract_coordinate_transform(
-        clip_rect: pymupdf.Rect,
-        rotate: float
-) -> pymupdf.Matrix:
-    # The rectangle surrounding the rotated version of the clip (corresponds to the page that was sent to AWS Textract)
-    rotated_clip_rect = (clip_rect.quad * pymupdf.Matrix(1, 1).prerotate(rotate)).rect
-
+def textract_coordinate_transform(clip_rect: pymupdf.Rect) -> pymupdf.Matrix:
     # Matrix to transform the Textract coordinates to the rotated PyMuPDF coordinates
-    transform1 = pymupdf.Rect(0, 0, 1, 1).torect(rotated_clip_rect)
-
-    # Matrix to change the PyMuPDF coordinates back to the unrotated version
-    transform2 = pymupdf.Matrix(1, 1).prerotate(-rotate)
-
-    # Matrix to transform the Textract coordinates back to the original unrotated PyMuPDF coordinates
-    return transform1 * transform2
+    return pymupdf.Rect(0, 0, 1, 1).torect(clip_rect)
 
 
 def text_lines_from_document(
         document: t1.Document,
         transform: pymupdf.Matrix,
-        rotate: float,
         page_height: float
 ) -> list[TextLine]:
     page = document.pages[0]
 
-    return [TextLine.from_textract(line, rotate, page_height, transform) for line in page.lines]
+    return [TextLine.from_textract(line, page_height, transform) for line in page.lines]
 
 
-def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_rect: pymupdf.Rect, rotate: float) -> list[TextLine]:
+def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_rect: pymupdf.Rect) -> list[TextLine]:
     with pymupdf.Document(doc_path) as doc:
         page = doc[0]
         page_height = page.rect.height  # height of the original, unrotated page, for computing the derotated_rect
@@ -59,7 +46,6 @@ def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_re
         # is the case. To avoid such errors, we take an explicit intersection with the mediabox whenever we call
         # page.set_cropbox(). Possibly related to: https://github.com/pymupdf/PyMuPDF/issues/1615
         page.set_cropbox(clip_transformed.intersect(page.mediabox))
-        page.set_rotation(page.rotation + rotate)
         doc.save(tmp_file_path, deflate=True, garbage=3, use_objstms=1)
         document = call_textract(extractor, tmp_file_path)
         os.remove(tmp_file_path)
@@ -68,9 +54,9 @@ def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_re
             return []
 
         # Matrix to transform Textract coordinates back to PyMuPDF coordinates
-        transform = textract_coordinate_transform(clip_rect=clip_rect, rotate=rotate)
+        transform = textract_coordinate_transform(clip_rect=clip_rect)
 
-        return text_lines_from_document(document, transform, rotate, page_height)
+        return text_lines_from_document(document, transform, page_height)
 
 
 def backoff_hdlr(details):

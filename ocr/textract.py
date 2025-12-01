@@ -41,7 +41,6 @@ def textract_coordinate_transform(
 def text_lines_from_document(
         document: t1.Document,
         transform: pymupdf.Matrix,
-        rotate: float,
         page_height: float
 ) -> list[TextLine]:
     page = document.pages[0]
@@ -51,7 +50,7 @@ def text_lines_from_document(
     else:
         orientation = 0
 
-    return [TextLine.from_textract(line, orientation - rotate, page_height, transform) for line in page.lines]
+    return [TextLine.from_textract(line, orientation, page_height, transform) for line in page.lines]
 
 
 def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_rect: pymupdf.Rect, rotate: float) -> list[TextLine]:
@@ -77,7 +76,7 @@ def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_re
         # Matrix to transform Textract coordinates back to PyMuPDF coordinates
         transform = textract_coordinate_transform(clip_rect=clip_rect, rotate=rotate)
 
-        return text_lines_from_document(document, transform, rotate, page_height)
+        return text_lines_from_document(document, transform, page_height)
 
 
 def backoff_hdlr(details):

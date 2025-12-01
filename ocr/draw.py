@@ -85,7 +85,8 @@ def draw_ocr_text_page(
             c.rotate(-line.orientation)
             current_orientation = line.orientation
             text = c.beginText(0, 0)
-            text.setTextRenderMode(3)
+            if not visible:
+                text.setTextRenderMode(3)
 
         word = None
         font_size = min(

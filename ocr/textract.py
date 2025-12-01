@@ -8,11 +8,9 @@ import os
 import backoff
 from botocore.exceptions import ClientError
 from mypy_boto3_textract import TextractClient as Textractor
-from trp.t_pipeline import add_page_orientation
 import trp.trp2 as t2
 import trp as t1
 import textractcaller.t_call as t_call
-import statistics
 
 
 from ocr.readingorder import TextLine
@@ -41,16 +39,12 @@ def textract_coordinate_transform(
 def text_lines_from_document(
         document: t1.Document,
         transform: pymupdf.Matrix,
+        rotate: float,
         page_height: float
 ) -> list[TextLine]:
     page = document.pages[0]
 
-    if 'PageOrientationBasedOnWords' in page.custom:
-        orientation = page.custom['PageOrientationBasedOnWords']
-    else:
-        orientation = 0
-
-    return [TextLine.from_textract(line, orientation, page_height, transform) for line in page.lines]
+    return [TextLine.from_textract(line, rotate, page_height, transform) for line in page.lines]
 
 
 def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_rect: pymupdf.Rect, rotate: float) -> list[TextLine]:
@@ -76,7 +70,7 @@ def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_re
         # Matrix to transform Textract coordinates back to PyMuPDF coordinates
         transform = textract_coordinate_transform(clip_rect=clip_rect, rotate=rotate)
 
-        return text_lines_from_document(document, transform, page_height)
+        return text_lines_from_document(document, transform, rotate, page_height)
 
 
 def backoff_hdlr(details):
@@ -108,12 +102,6 @@ def call_textract(extractor: Textractor, tmp_file_path: Path) -> t1.Document | N
     except extractor.exceptions.UnsupportedDocumentException:  # 1430.pdf page 18
         print("Encountered UnsupportedDocumentException from Textract. Page might have excessive width or height. Skipping page.")
         return None
-
-    try:
-        t_document = add_page_orientation(t_document)
-    except statistics.StatisticsError:
-        # catch "statistics.StatisticsError: no mode for empty data"
-        pass
 
     return t1.Document(t2.TDocumentSchema().dump(t_document))
 

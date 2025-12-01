@@ -82,7 +82,7 @@ class OCR:
         return Path("{}_{}.{}".format(tmp_path_prefix, uuid4(), extension))
 
     def apply_ocr(self, clip_rect: pymupdf.Rect):
-        """Apply OCR with double page workaround and vertical check"""
+        """Apply OCR with double page workaround"""
         text_lines = self._ocr_text_lines(clip_rect, rotate=0)
 
         if ((self.page_rect.height < MAX_DIMENSION_POINTS and self.page_rect.width < MAX_DIMENSION_POINTS) and (
@@ -95,38 +95,15 @@ class OCR:
 
             left_clip_rect = (page_rect * pymupdf.Matrix(0.5, 1))
             left_text_lines = self._ocr_text_lines(left_clip_rect, rotate=0)
-            lines_to_draw = self.apply_vertical_check(left_text_lines, left_clip_rect)
+            lines_to_draw = get_ocr_lines(left_text_lines, self.mask, self.confidence_threshold)
 
             right_clip_rect = (page_rect * pymupdf.Matrix(0.5, 1).pretranslate(page_rect.width, 0))
             right_text_lines = self._ocr_text_lines(right_clip_rect, rotate=0)
-            lines_to_draw.extend(self.apply_vertical_check(right_text_lines, right_clip_rect))
+            lines_to_draw.extend(get_ocr_lines(right_text_lines, self.mask, self.confidence_threshold))
 
             return lines_to_draw
         else:
-            return self.apply_vertical_check(text_lines, clip_rect)
-
-    def apply_vertical_check(self, text_lines: list[TextLine], clip_rect: pymupdf.Rect):
-        lines_to_draw, processed_rects, vertical_detected = (
-            get_ocr_lines(text_lines, self.mask, self.confidence_threshold, detect_vertical=True)
-        )
-
-        if vertical_detected:
-            print("  Potential vertical text detected. Running OCR again with horizontal text masked.")
-            for rect in processed_rects:
-                with pymupdf.Document(self.textract_doc_path) as doc:
-                    page = doc[0]
-                    page.draw_rect(
-                        rect * page.derotation_matrix,
-                        width=0,
-                        fill=pymupdf.utils.getColor("white")
-                    )
-                    doc.saveIncr()
-            vertical_text_lines = self._ocr_text_lines(clip_rect, rotate=90)
-            vertical_draw_lines, _, _ = (
-                get_ocr_lines(vertical_text_lines, self.mask, self.confidence_threshold, detect_vertical=False)
-            )
-            lines_to_draw.extend(vertical_draw_lines)
-        return lines_to_draw
+            return get_ocr_lines(text_lines, self.mask, self.confidence_threshold)
 
     def _ocr_text_lines(self, clip_rect: pymupdf.Rect, rotate: float) -> list[TextLine]:
         text_lines = []
@@ -150,42 +127,25 @@ class OCR:
 def get_ocr_lines(
         text_lines: list[TextLine],
         mask: Mask,
-        confidence_threshold: float,
-        detect_vertical: bool = True
-) -> (list[TextLine], list[pymupdf.Rect], bool):
+        confidence_threshold: float
+) -> list[TextLine]:
     draw_lines = []
-    processed_rects = []
-    vertical_detected = False
     for reading_order_block in sort_lines(text_lines):
-        if detect_vertical:
-            non_vertical_lines = [
-                line for line in reading_order_block.lines
-                if line.rect.height <= line.rect.width or len(line.text) <= 2
-            ]
+        lines = reading_order_block.lines
+
+        line_confidence_values = [line.confidence for line in lines]
+        avg_confidence = sum(line_confidence_values) / len(line_confidence_values)
+        if avg_confidence < confidence_threshold:
+            # if the block has a low overall confidence (e.g. handwritten text) then individual lines are only included
+            # when they have a very high confidence.
+            line_confidence_threshold = (1 + confidence_threshold) / 2
         else:
-            non_vertical_lines = reading_order_block.lines
+            # otherwise, we are flexible and allow anything that is not too far below the avg confidence
+            line_confidence_threshold = avg_confidence / 2
 
-        if len(non_vertical_lines) < len(reading_order_block.lines):
-            vertical_detected = True
+        for line in lines:
+            if not mask.intersects(line.rect):
+                if line.confidence > line_confidence_threshold:
+                    draw_lines.append(line)
 
-        if len(non_vertical_lines):
-            line_confidence_values = [line.confidence for line in non_vertical_lines]
-            avg_confidence = sum(line_confidence_values) / len(line_confidence_values)
-            if avg_confidence < confidence_threshold:
-                # if the block has a low overall confidence (e.g. handwritten text) then individual lines are only included
-                # when they have a very high confidence.
-                line_confidence_threshold = (1 + confidence_threshold) / 2
-            else:
-                # otherwise, we are flexible and allow anything that is not too far below the avg confidence
-                line_confidence_threshold = avg_confidence / 2
-
-            for line in non_vertical_lines:
-                if not mask.intersects(line.rect):
-                    if line.confidence > line_confidence_threshold:
-                        processed_rects.append(line.rect)
-                        draw_lines.append(line)
-                    elif line.rect.width > line.rect.height and len(line.text) > 2:
-                        # consider a clearly horizontal rect to be processed, even if the confidence is low
-                        processed_rects.append(line.rect)
-
-    return draw_lines, processed_rects, vertical_detected
+    return draw_lines

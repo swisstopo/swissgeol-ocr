@@ -1,6 +1,6 @@
 FROM python:3.12-alpine3.19
 
-RUN apk add --quiet --no-cache ghostscript
+RUN apk add --quiet --no-cache ghostscript build-essential
 
 WORKDIR /app
 COPY . .

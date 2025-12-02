@@ -1,5 +1,6 @@
 import pymupdf
 from trp import Line
+import trp.trp2 as t2
 
 class TextWord:
     def __init__(self, text: str, derotated_rect: pymupdf.Rect, orientation: float):
@@ -23,16 +24,22 @@ class TextLine:
         self.words = words
 
     @staticmethod
-    def from_textract(line: Line, orientation: float, page_height: float, transform: pymupdf.Matrix):
+    def from_textract(line: Line, page_height: float, transform: pymupdf.Matrix):
         """
 
         :param line:
-        :param orientation:
         :param page_height:
         :param transform: Matrix, based on rotation and clip rect, that transforms the Textract coordinates to the
                           PyMuPDF coordinates of the original page.
         """
-        derotator = GeometryDerotator(orientation, transform, page_height)
+        if not line.words:
+            return []
+
+        # assume rotation of first word applies to all words in the line
+        first_word = line.words[0]
+        rotate = round(TextLine.__get_degree_from_polygon(first_word.geometry.polygon))
+
+        derotator = GeometryDerotator(rotate, transform, page_height)
         derotated_rect, orientation = derotator.derotate(line.geometry)
 
         bbox = line.geometry.boundingBox
@@ -46,6 +53,23 @@ class TextLine:
         words = [TextWord.from_textract(word, derotator) for word in line.words]
 
         return TextLine(derotated_rect, orientation, rect, text, confidence, words)
+
+
+    @staticmethod
+    def __get_degree_from_polygon(poly: list[t2.TPoint] = None) -> float:
+        """
+        Returns degrees as float -180.0 < x < 180.0
+
+        In the future, we might want to read this directly from the RotationAngle field of the AWS Textract API response,
+        but this new field is not yet implemented in the amazon-textract-textractor Python package.
+        """
+        import math
+        if not poly:
+            raise ValueError("no polygon given")
+        point_0 = poly[0]
+        point_1 = poly[1]
+        orientation = math.degrees(math.atan2(point_1.y - point_0.y, point_1.x - point_0.x))
+        return orientation
 
 
 class GeometryDerotator:

@@ -2,6 +2,7 @@ import io
 
 import pymupdf
 from pymupdf.mupdf import FzErrorFormat
+from PIL import Image, ImageCms
 
 
 def rotation_from_transform_matrix(transform: pymupdf.Matrix) -> int | None:
@@ -140,7 +141,8 @@ def replace_jpx_images(doc: pymupdf.Document, page_index: int):
             print(f"  Encountered ValueError for xref {xref}, skipping replace_jpx_images.")
 
 
-def downscale_images_x2(doc: pymupdf.Document, page_index: int):
+def downscale_images_x2(doc: pymupdf.Document, page_index: int) -> bool:
+    downscale_successful = False
     page = doc[page_index]
     for dict in page.get_image_info(xrefs=True):
         xref = dict['xref']
@@ -148,16 +150,32 @@ def downscale_images_x2(doc: pymupdf.Document, page_index: int):
             extracted_img = doc.extract_image(xref)
             ext = extracted_img['ext']
             image_bbox = pymupdf.Rect(*dict["bbox"])
-            print(f"  Downscaling {ext} image (width {dict['width']}, height {dict['height']}, bbox {image_bbox}, page.rect {page.rect}).")
 
-            img = _pixmap_from_xref(doc, xref)
-            img.shrink(1)  # reduce width and height by a factor of 2^1 = 2
-            page.replace_image(xref, stream=img.tobytes(ext, jpg_quality=85))
+            fp = io.BytesIO(extracted_img["image"])
+            img = Image.open(fp)
+
+            if ext == "jpeg":
+                print(f"  Downscaling {ext} image (width {dict['width']}, height {dict['height']}, bbox {image_bbox}, page.rect {page.rect}).")
+                (width, height) = (img.width // 2, img.height // 2)
+                if not (width > 0 and height > 0):
+                    continue
+                img = img.resize((width, height))
+            else:
+                # Always use JPEG when downscaling, as downscaling other image formats such as PNG can lead to strange
+                # errors (e.g. 23dc42f0-5937-11ef-a4fb-00155d7ba234.pdf from Boreholes)
+                print(f"  Converting {ext} image to JPEG (width {dict['width']}, height {dict['height']}, bbox {image_bbox}, page.rect {page.rect}).")
+
+            bytes_io = io.BytesIO()
+            img.save(bytes_io, format="jpeg")
+            page.replace_image(xref, stream=bytes_io.getvalue())
             # Without clean_contents() after replace_image(), we get issues (changing xref values, increasing PDF file
             # size) with certain input PDFs, e.g. deep well AM7RV03900_bp_19960801_Wellenberg-SB1.pdf.
             page.clean_contents()
+            downscale_successful = True
         except ValueError:
             print(f"  Encountered ValueError for xref {xref}, skipping downscale_images_x2.")
+
+    return downscale_successful
 
 
 def _pixmap_from_xref(doc: pymupdf.Document, xref: int) -> pymupdf.Pixmap:

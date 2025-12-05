@@ -2,7 +2,7 @@ import io
 
 import pymupdf
 from pymupdf.mupdf import FzErrorFormat
-from PIL import Image, ImageCms
+from PIL import Image
 
 
 def rotation_from_transform_matrix(transform: pymupdf.Matrix) -> int | None:

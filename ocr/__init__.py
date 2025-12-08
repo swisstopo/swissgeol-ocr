@@ -14,7 +14,11 @@ from ocr.crop import crop_images, replace_jpx_images
 from ocr.draw import draw_ocr_text_page
 from ocr.resize import resize_page
 from ocr.util import is_digitally_born
+from PIL import Image
 
+
+# Avoid "could be decompression bomb DOS attack" error, because this gives false positives on high-resolution scans
+Image.MAX_IMAGE_PIXELS = None
 
 @dataclasses.dataclass
 class ProcessResult:

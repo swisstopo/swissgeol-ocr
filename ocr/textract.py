@@ -7,7 +7,7 @@ import pymupdf
 import os
 import backoff
 from botocore.exceptions import ClientError
-from marshmallow import EXCLUDE, INCLUDE, Schema
+from marshmallow import EXCLUDE, Schema
 from marshmallow.fields import Nested, List
 from mypy_boto3_textract import TextractClient as Textractor
 import trp.trp2 as t2

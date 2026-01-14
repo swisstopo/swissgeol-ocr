@@ -127,8 +127,9 @@ def clip_rects(main_rect: pymupdf.Rect) -> list[pymupdf.Rect]:
     if main_rect.width <= MAX_DIMENSION_POINTS and main_rect.height <= MAX_DIMENSION_POINTS:
         return [main_rect]
     else:
-        x_starts = range(0, int(main_rect.width - overlap), MAX_DIMENSION_POINTS - overlap)
-        y_starts = range(0, int(main_rect.height - overlap), MAX_DIMENSION_POINTS - overlap)
+        # Fallback to a single start at 0 in case the width or height is smaller than the value of overlap
+        x_starts = range(0, int(main_rect.width - overlap), MAX_DIMENSION_POINTS - overlap) or [0]
+        y_starts = range(0, int(main_rect.height - overlap), MAX_DIMENSION_POINTS - overlap) or [0]
         clip_rects = [main_rect]
         clip_rects.extend([
             pymupdf.Rect(x0, y0, x0 + MAX_DIMENSION_POINTS, y0 + MAX_DIMENSION_POINTS).intersect(main_rect)

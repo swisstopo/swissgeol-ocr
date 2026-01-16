@@ -28,7 +28,7 @@ def find_old_ocr_rects(page: pymupdf.Page) -> list[pymupdf.Rect]:
             all_text_covered = False
             text_bbox_union = text_bbox_union | rectangle
             visible_text_rects.append(rectangle)
-        if boxType == "fill-image":
+        if boxType == "fill-image" or boxType == "fill-imgmask":
             if rectangle.contains(text_bbox_union):
                 all_text_covered = True
         if boxType == "ignore-text":

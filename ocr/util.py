@@ -26,7 +26,7 @@ def is_digitally_born(page: pymupdf.Page) -> bool:
         if (boxType == "fill-text" or boxType == "stroke-text") and not rectangle.is_empty:
             all_text_covered = False
             text_bbox_union = text_bbox_union | rectangle
-        if boxType == "fill-image":
+        if boxType == "fill-image" or boxType == "fill-imgmask":
             has_image = True
             if rectangle.contains(text_bbox_union):
                 all_text_covered = True

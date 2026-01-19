@@ -1,3 +1,4 @@
+amazon-textract-caller
 backoff
 pymupdf >= 1.26.4
 reportlab

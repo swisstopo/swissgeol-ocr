@@ -127,7 +127,7 @@ class Processor:
                 print(" Skipping digitally-born page.")
                 return
         tmp_path_prefix = os.path.join(self.tmp_dir, f"page{page_number}")
-        lines_to_draw = process_page(doc, new_page, self.textractor, tmp_path_prefix,
+        lines_to_draw = process_page(doc, new_page, self.textract_client, tmp_path_prefix,
                                      self.confidence_threshold, mask)
 
         text_layer_path = os.path.join(self.tmp_dir, f"page{page_number}.pdf")

@@ -141,7 +141,7 @@ def test_parse_response():
         ),
     ]
 
-    assert text_lines_from_response(response, transform, page_height) != expected_lines
+    assert text_lines_from_response(response, transform, page_height) == expected_lines
 
     # ignore unknown block types
     response = {

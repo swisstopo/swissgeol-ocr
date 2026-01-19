@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 
 import pymupdf
-from mypy_boto3_textract import TextractClient as Textractor
+from mypy_boto3_textract import TextractClient
 from pymupdf import mupdf
 
 from ocr.mask import Mask
@@ -31,7 +31,7 @@ class Processor:
     output_path: Path
     debug_page: int | None
     tmp_dir: Path
-    textractor: Textractor
+    textract_client: TextractClient
     confidence_threshold: float
     use_aggressive_strategy: bool
 

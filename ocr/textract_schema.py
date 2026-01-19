@@ -1,8 +1,9 @@
 """Rich schema for Textract API responses."""
 
 from dataclasses import dataclass
+from math import isnan
 
-from ocr.textract_api_schema import TDocument, TBlock, TBoundingBox, TPoint, TGeometry
+from ocr.textract_api_schema import TDocument, TBlock, TBoundingBox, TPoint, TGeometry, TLine, TWord, TPage
 
 
 @dataclass
@@ -69,7 +70,7 @@ class Word:
     geometry: Geometry
 
     @staticmethod
-    def from_api_response(word: TBlock) -> "Word":
+    def from_api_response(word: TWord) -> "Word":
         return Word(
             text=word.text,
             confidence=word.confidence,
@@ -84,11 +85,11 @@ class Line:
     geometry: Geometry
 
     @staticmethod
-    def from_api_response(line: TBlock, id_to_block: dict[str, TBlock]) -> "Line":
+    def from_api_response(line: TLine, id_to_block: dict[str, TBlock]) -> "Line":
         children = [id_to_block[child_id] for child_id in line.child_ids if child_id in id_to_block]
         return Line(
             text=line.text,
-            words=[Word.from_api_response(child) for child in children if child.block_type == 'WORD'],
+            words=[Word.from_api_response(child) for child in children if isinstance(child, TWord)],
             confidence=line.confidence,
             geometry=Geometry.from_api_response(line.geometry)
         )
@@ -98,10 +99,10 @@ class Page:
     lines: list[Line]
 
     @staticmethod
-    def from_api_response(page: TBlock, id_to_block: dict[str, TBlock]) -> "Page":
+    def from_api_response(page: TPage, id_to_block: dict[str, TBlock]) -> "Page":
         children = [id_to_block[child_id] for child_id in page.child_ids if child_id in id_to_block]
         return Page(
-            lines=[Line.from_api_response(child, id_to_block) for child in children if child.block_type == 'LINE']
+            lines=[Line.from_api_response(child, id_to_block) for child in children if isinstance(child, TLine)]
         )
 
 @dataclass
@@ -113,5 +114,5 @@ class Document:
         blocks = response.blocks
         id_to_block = {block.id: block for block in blocks}
         return Document(
-            pages=[Page.from_api_response(block, id_to_block) for block in blocks if block.block_type == 'PAGE']
+            pages=[Page.from_api_response(block, id_to_block) for block in blocks if isinstance(block, TPage)]
         )

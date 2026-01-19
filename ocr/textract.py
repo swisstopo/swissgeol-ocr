@@ -29,9 +29,11 @@ def text_lines_from_response(
         page_height: float
 ) -> list[TextLine]:
     parsed_response = TDocument.model_validate(response)
-    page = Document.from_api_response(parsed_response).pages[0]
+    document = Document.from_api_response(parsed_response)
+    if not len(document.pages):
+        return []
 
-    return [TextLine.from_textract(line, page_height, transform) for line in page.lines]
+    return [TextLine.from_textract(line, page_height, transform) for line in document.pages[0].lines]
 
 
 def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_rect: pymupdf.Rect) -> list[TextLine]:

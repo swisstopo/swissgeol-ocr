@@ -2,8 +2,9 @@
 
 Only field that are relevant for the current project are defined, everything else is ignored."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_pascal
+from typing import Literal, Union
 
 
 class Model(BaseModel):
@@ -29,13 +30,12 @@ class TRelationship(Model):
     type: str
     ids: list[str]
 
-class TBlock(Model):
-    block_type: str
+class BlockModel(Model):
     geometry: TGeometry
     id: str
-    relationships: list[TRelationship] | None = None
-    confidence: float | None = None
-    text: str | None = None
+
+class BlockModelWithRelationships(BlockModel):
+    relationships: list[TRelationship]
 
     @property
     def child_ids(self) -> list[str]:
@@ -47,6 +47,25 @@ class TBlock(Model):
             if relationship_group.type == 'CHILD'
             for id in relationship_group.ids
         ]
+
+class TPage(BlockModelWithRelationships):
+    block_type: Literal['PAGE']
+
+class TLine(BlockModelWithRelationships):
+    block_type: Literal['LINE']
+    confidence: float | None = None
+    text: str | None = None
+
+class TWord(BlockModel):
+    block_type: Literal['WORD']
+    confidence: float | None = None
+    text: str | None = None
+
+class TOtherBlock(BlockModel):
+    block_type: str
+
+type TBlock = Union[TPage, TLine, TWord, TOtherBlock]
+
 
 class TDocument(Model):
     blocks: list[TBlock]

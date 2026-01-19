@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 
 import pymupdf
-from mypy_boto3_textract import TextractClient as Textractor
+from mypy_boto3_textract import TextractClient
 from pymupdf import mupdf
 
 from ocr.mask import Mask
@@ -31,7 +31,7 @@ class Processor:
     output_path: Path
     debug_page: int | None
     tmp_dir: Path
-    textractor: Textractor
+    textract_client: TextractClient
     confidence_threshold: float
     use_aggressive_strategy: bool
 
@@ -127,7 +127,7 @@ class Processor:
                 print(" Skipping digitally-born page.")
                 return
         tmp_path_prefix = os.path.join(self.tmp_dir, f"page{page_number}")
-        lines_to_draw = process_page(doc, new_page, self.textractor, tmp_path_prefix,
+        lines_to_draw = process_page(doc, new_page, self.textract_client, tmp_path_prefix,
                                      self.confidence_threshold, mask)
 
         text_layer_path = os.path.join(self.tmp_dir, f"page{page_number}.pdf")

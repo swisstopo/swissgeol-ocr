@@ -1,4 +1,3 @@
-amazon-textract-textractor
 backoff
 pymupdf >= 1.26.4
 reportlab

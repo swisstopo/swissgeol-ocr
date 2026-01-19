@@ -122,7 +122,7 @@ def process(
             output_path=output_path,
             debug_page=None,
             tmp_dir=tmp_dir,
-            textractor=aws_client.textract,
+            textract_client=aws_client.textract,
             confidence_threshold=settings.confidence_threshold,
             use_aggressive_strategy=settings.use_aggressive_strategy,
         ).process()

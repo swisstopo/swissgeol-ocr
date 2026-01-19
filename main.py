@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 import boto3
-from textractor import Textractor
 
 import ocr
 from ocr.source import S3AssetSource, FileAssetSource
@@ -60,7 +59,8 @@ def load_source(settings: ScriptSettings, target: AssetTarget):
 
 def main():
     settings = script_settings()
-    extractor = Textractor(profile_name=settings.textract_aws_profile)
+    session = boto3.session.Session(profile_name=settings.textract_aws_profile)
+    textract_client = session.client("textract")
 
     target = load_target(settings)
     source = load_source(settings, target)
@@ -76,7 +76,7 @@ def main():
             asset_item.result_tmp_path,
             settings.input_debug_page,
             asset_item.tmp_dir,
-            extractor.textract_client,
+            textract_client,
             settings.confidence_threshold,
             settings.use_aggressive_strategy,
         ).process()

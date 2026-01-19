@@ -7,14 +7,11 @@ import pymupdf
 import os
 import backoff
 from botocore.exceptions import ClientError
-from marshmallow import EXCLUDE, Schema
-from marshmallow.fields import Nested, List
 from mypy_boto3_textract import TextractClient as Textractor
-import trp.trp2 as t2
-import trp as t1
 import textractcaller.t_call as t_call
 
-
+from ocr.textract_api_schema import TDocument
+from ocr.textract_schema import Document
 from ocr.readingorder import TextLine
 
 
@@ -26,14 +23,17 @@ def textract_coordinate_transform(clip_rect: pymupdf.Rect) -> pymupdf.Matrix:
     return pymupdf.Rect(0, 0, 1, 1).torect(clip_rect)
 
 
-def text_lines_from_document(
-        document: t1.Document,
+def text_lines_from_response(
+        response: dict,
         transform: pymupdf.Matrix,
         page_height: float
 ) -> list[TextLine]:
-    page = document.pages[0]
+    parsed_response = TDocument.model_validate(response)
+    document = Document.from_api_response(parsed_response)
+    if not len(document.pages):
+        return []
 
-    return [TextLine.from_textract(line, page_height, transform) for line in page.lines]
+    return [TextLine.from_textract(line, page_height, transform) for line in document.pages[0].lines]
 
 
 def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_rect: pymupdf.Rect) -> list[TextLine]:
@@ -49,16 +49,16 @@ def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_re
         # page.set_cropbox(). Possibly related to: https://github.com/pymupdf/PyMuPDF/issues/1615
         page.set_cropbox(clip_transformed.intersect(page.mediabox))
         doc.save(tmp_file_path, deflate=True, garbage=3, use_objstms=1)
-        document = call_textract(extractor, tmp_file_path)
+        response = call_textract(extractor, tmp_file_path)
         os.remove(tmp_file_path)
 
-        if document is None:
+        if response is None:
             return []
 
         # Matrix to transform Textract coordinates back to PyMuPDF coordinates
         transform = textract_coordinate_transform(clip_rect=clip_rect)
 
-        return text_lines_from_document(document, transform, page_height)
+        return text_lines_from_response(response, transform, page_height)
 
 
 def backoff_hdlr(details):
@@ -70,41 +70,17 @@ def backoff_hdlr(details):
                       on_backoff=backoff_hdlr,
                       base=2,
                       max_tries=3)
-def call_textract(extractor: Textractor, tmp_file_path: Path) -> t1.Document | None:
+def call_textract(extractor: Textractor, tmp_file_path: Path) -> dict | None:
     if os.path.getsize(tmp_file_path) >= 10 * 1024 * 1024:  # 10 MB
         print("Page larger than 10MB. Skipping page.")
         return None
     try:
-        j = t_call.call_textract(
+        response = t_call.call_textract(
             input_document=str(tmp_file_path),
             boto3_textract_client=extractor,
             call_mode=t_call.Textract_Call_Mode.FORCE_SYNC
         )
 
-        # Workaround for the following combination of issues:
-        # - AWS Textract returns a new 'RotationAngle' field as part of the 'Geometry' schema.
-        # - The schema defined in the textract-response-parser library does not include this field. This has been
-        #   reported, and there even is a PR for it, but this has been open for 4 months and the repository itself
-        #   has not been updated for 2 years, so maybe it will never be merged. If the repo is indeed dead, then
-        #   we should start looking for an alternative, or even implement the schema directly without relying on a
-        #   library.
-        #   See https://github.com/aws-samples/amazon-textract-response-parser/issues/192
-        #       https://github.com/aws-samples/amazon-textract-response-parser/pull/193
-        # - The JSON library marshmallow has a setting 'unknown' that allows you to ignore such JSON fields that
-        #   are not defined in the schema. However, this setting does not automatically propagate to nested fields.
-        #   See https://github.com/marshmallow-code/marshmallow/issues/980
-        # Workaround inspired by https://github.com/marshmallow-code/marshmallow/issues/1428#issuecomment-558297299
-        def set_unknown_all(schema: Schema, unknown):
-            schema.unknown = unknown
-            for field in schema.fields.values():
-                if isinstance(field, Nested):
-                    set_unknown_all(field.schema, unknown)
-                if isinstance(field, List) and isinstance(field.inner, Nested):
-                    set_unknown_all(field.inner.schema, unknown)
-            return schema
-
-        permissive_schema = set_unknown_all(t2.TDocumentSchema(), EXCLUDE)
-        t_document: t2.TDocument = permissive_schema.load(j)
     except extractor.exceptions.InvalidParameterException:
         print("Encountered InvalidParameterException from Textract. Page might require more than 10MB memory. Skipping page.")
         return None
@@ -115,7 +91,7 @@ def call_textract(extractor: Textractor, tmp_file_path: Path) -> t1.Document | N
         print("Encountered UnsupportedDocumentException from Textract. Page might have excessive width or height. Skipping page.")
         return None
 
-    return t1.Document(t2.TDocumentSchema().dump(t_document))
+    return response
 
 
 def clip_rects(main_rect: pymupdf.Rect) -> list[pymupdf.Rect]:

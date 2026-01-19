@@ -3,10 +3,10 @@ name: pytest
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [develop, main]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
 
 jobs:

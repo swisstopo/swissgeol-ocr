@@ -25,13 +25,14 @@ class TGeometry(Model):
     bounding_box: TBoundingBox
     polygon: list[TPoint]
 
+class TGeometryWithRotation(TGeometry):
+    rotation_angle: float
 
 class TRelationship(Model):
     type: str
     ids: list[str]
 
 class BlockModel(Model):
-    geometry: TGeometry
     id: str
 
 class BlockModelWithRelationships(BlockModel):
@@ -53,11 +54,13 @@ class TPage(BlockModelWithRelationships):
 
 class TLine(BlockModelWithRelationships):
     block_type: Literal['LINE']
+    geometry: TGeometry
     confidence: float | None = None
     text: str | None = None
 
 class TWord(BlockModel):
     block_type: Literal['WORD']
+    geometry: TGeometryWithRotation
     confidence: float | None = None
     text: str | None = None
 

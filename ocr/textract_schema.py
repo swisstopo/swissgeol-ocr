@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from math import isnan
 
+from numpy.random import geometric
+
 from ocr.textract_api_schema import TDocument, TBlock, TBoundingBox, TPoint, TGeometry, TLine, TWord, TPage
 
 
@@ -20,8 +22,7 @@ class Polygon:
         """
         Returns degrees as float -180.0 < x < 180.0
 
-        In the future, we might want to read this directly from the RotationAngle field of the AWS Textract API response,
-        but this new field is not yet implemented in the amazon-textract-textractor Python package.
+        TODO: check if we can read this directly from the RotationAngle field of the AWS Textract API response.
         """
         import math
         if len(self.points) < 2:
@@ -68,13 +69,15 @@ class Word:
     text: str
     confidence: float
     geometry: Geometry
+    rotation_angle: float
 
     @staticmethod
     def from_api_response(word: TWord) -> "Word":
         return Word(
             text=word.text,
             confidence=word.confidence,
-            geometry=Geometry.from_api_response(word.geometry)
+            geometry=Geometry.from_api_response(word.geometry),
+            rotation_angle=word.geometry.rotation_angle
         )
 
 @dataclass

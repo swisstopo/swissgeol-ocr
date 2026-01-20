@@ -31,7 +31,9 @@ Additional features:
 - Adds metadata to the object after processing, currently containing:
   - `X-Amz-Meta-Pagecount`: The number of pages in the document if available, else the key is not set
 
-## Installation
+## Usage
+
+### 1. Installation
 
 Python 3.12 is required.
 
@@ -43,8 +45,13 @@ source venv/bin/activate
 pip install -r requirements.txt 
 ```
 
-## Usage
-The script can be executed like any normal Python script file:
+### 2. Configuration
+
+Input source, output destination and other settings need to be **configured via environment variables**. There are different required environment variables depending on whether the pipeline needs to run as a script or as an API service. Detailed documentation is available under [docs/Configuration.md](docs/Configuration.md).
+
+### 3a. Running as a script
+
+After configuring the required environment variables, the script can be executed like any normal Python script file:
 ```bash
 python main.py
 ```
@@ -55,105 +62,46 @@ To run the script while additionally appending all output to a log file, you can
 python -u main.py | tee output.log 
 ```
 
-The API is built on [FastAPI](https://fastapi.tiangolo.com/) and can be run by its CLI:
+### 3b. Running as an API
+
+The API is built on [FastAPI](https://fastapi.tiangolo.com/). After configuring the required environment variables, the API can be started using the following command:
 ```bash
 fastapi run api.py
 ```
 
-## Configuration
+Unless configured otherwise, this will start the API at http://0.0.0.0:8000 and detailed documentation (as well as en interface to test the different entpoints) will be accessible at http://0.0.0.0:8000/docs.
 
-Environment variables are read from the file `.env`.
+#### Endpoint `POST /`
 
-If an environment variable `OCR_PROFILE` is specified, then environment variables are additionally read
-from `.env.{OCR_PROFILE}`, with the values from this file potentially overriding the values from `.env`.
+Starts OCR on a given PDF file.
 
-For example, run the script as `OCR_PROFILE=assets python -m main` to use the environment variables from `.env.assets`.
-
-> The API and Script require different configurations.
-> Please ensure that you are using the correct environment variables depending on what you want to execute.
-
-When setting the environment variable `INPUT_DEBUG_PAGE` to a particular page number, the pipeline will only process 
-that page, and additional create a version of the page with only the OCR layer (with visible text).
-
-### Script Configuration
-
-AWS credentials can be provided using
-a [credentials file](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) (`~/.aws/credentials`). The
-environment variable `AWS_TEXTRACT_PROFILE` in the configuration examples below refers to a profile in that file.
-
-#### `.env.assets`
-
-- Reads and writes asset files directly from/to S3.
-- Applies OCR more defensively, only to pages without pre-existing visible digital text.
-- Uses a higher confidence threshold (0.7), because for publication on assets.swissgeol.ch, we'd rather not put any OCR'
-  d text in the document at all, rather than putting nonsense in the document.
-
-```sh
-AWS_TEXTRACT_PROFILE=default
-
-INPUT_TYPE=S3
-INPUT_AWS_PROFILE=s3-assets
-INPUT_S3_BUCKET=swissgeol-assets-swisstopo
-INPUT_S3_PREFIX=asset/asset_files/
-INPUT_SKIP_EXISTING=TRUE
-
-OUTPUT_TYPE=S3
-OUTPUT_AWS_PROFILE=s3-assets
-OUTPUT_S3_BUCKET=swissgeol-assets-swisstopo
-OUTPUT_S3_PREFIX=asset/asset_files_new_ocr/
-
-CONFIDENCE_THRESHOLD=0.7
-CLEANUP_TMP_FILES=TRUE
+Example JSON payload:
+```json
+{
+  "file": "example.pdf"
+}
 ```
 
-#### `env.boreholes`
+#### Endpoint `POST /collect`
 
-- Read and writes files from/to a local directory.
-- Applies OCR more aggressively, also e.g. to images inside digitally-born PDF documents, as long as the newly detected
-  text does not overlap with any pre-existing digital text.
-- Uses a lower confidence threshold (0.45), as especially for extracting stratigraphy data, it is better to know all
-  places where some text is located in the document, even when we are not so sure how to actually read the text.
+Polls whether the OCR processing of a given PDF file has finished:
 
-```sh
-AWS_TEXTRACT_PROFILE=default
-
-INPUT_TYPE=path
-INPUT_PATH=/home/stijn/bohrprofile-zurich/
-
-OUTPUT_TYPE=path
-OUTPUT_PATH=/home/stijn/bohrprofile-zurich/ocr/
-
-CONFIDENCE_THRESHOLD=0.45
-USE_AGGRESSIVE_STRATEGY=TRUE
+Example JSON payload:
+```json
+{
+  "file": "example.pdf"
+}
 ```
 
-### API Configuration
 
-```sh
-# The directory at which temporary files are to be stored.
-TMP_PATH=tmp/
+## Governance
 
-# The local AWS profile that will be used to access Textract.
-#
-# If left empty, the credentials will be read from the environment.
-# This allows the use of service accounts when deploying to K8s.
-AWS_PROFILE=swisstopo-ngm
+This repository is managed by the Swiss Federal Office of Topography [swisstopo](https://www.swisstopo.admin.ch/). Project lead and primary maintainer is Stijn Vermeeren [@stijnvermeeren-swisstopo](https://www.github.com/stijnvermeeren-swisstopo). Support has come from external contractors at [Visium](https://www.visium.ch/) and [EBP](https://www.ebp.global/).
 
-# Alternatives to `AWS_PROFILE` to allow you to specify the access keys directly.
-# AWS_ACCESS_KEY=
-# AWS_SECRET_ACCESS_KEY=
+We welcome suggestions, bug reports and code contributions from third parties, as external feedback is also likely to make the project better for our internal use. However, the priority of any external request will have to be evaluated against their compatibility with our legal mandate as government agency.
 
-# During local development, an S3-compatible service like MinIO (https://min.io/) can be used.
-# In this case, the endpoint will look like `http://minio:9000`.
-# Note that if MinIO is used, you still need to configure AWS_DEFAULT_REGION if none is set in your AWS credentials.
-S3_INPUT_ENDPOINT=https://s3.eu-central-1.amazonaws.com
-S3_INPUT_BUCKET=swissgeol-assets-swisstopo
-S3_INPUT_FOLDER=asset_files/
+### Licence
 
-S3_OUTPUT_ENDPOINT=https://s3.eu-central-1.amazonaws.com
-S3_OUTPUT_BUCKET=swissgeol-assets-swisstopo
-S3_OUTPUT_FOLDER=new_ocr_output/
+This project is released as open source software, under the principle of "_public money, public code_", in accordance with the 2023 federal law "[_EMBAG_](https://www.fedlex.admin.ch/eli/fga/2023/787/de)", and following the guidance of the [tools for OSS published by the Federal Chancellery](https://www.bk.admin.ch/bk/en/home/digitale-transformation-ikt-lenkung/bundesarchitektur/open_source_software/hilfsmittel_oss.html).
 
-CONFIDENCE_THRESHOLD=0.7
-```
-
+The source code is licensed under the [AGPL License](LICENSE). This is due to the licensing of certain dependencies, most notably [PyMuPDF](https://pymupdf.readthedocs.io/en/latest/about.html#license-and-copyright), which is only avialable under either the AGPL license or a commercial license. If in future we can remove this dependency, then we will switch to a more permissive license for this project.

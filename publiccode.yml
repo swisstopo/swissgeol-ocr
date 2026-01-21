@@ -32,7 +32,7 @@ description:
       data soveriegnty or model transparency, then an open source OCR model such as Tesseract might be preferrable. 
       On the other hand, a commercial API such as AWS Textract brings advantages such as scalability and high 
       OCR quality at a relatively small price per page. Swisstopo's motivation for using AWS Textract and 
-      developing an OCR pipeline in this way is documented in more details on the page 
+      developing an OCR pipeline in this way is documented in more detail on the page 
       [docs/**Motivation.md**](https://github.com/swisstopo/swissgeol-ocr/blob/develop/docs/Motivation.md).
     features:
     - Creates a new PDF file where the text detected by the AWS Textract OCR model can be selected 

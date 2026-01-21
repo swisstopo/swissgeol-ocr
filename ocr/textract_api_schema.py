@@ -2,9 +2,9 @@
 
 Only field that are relevant for the current project are defined, everything else is ignored."""
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_pascal
-from typing import Literal, Union
+from typing import Literal
 
 
 class Model(BaseModel):
@@ -67,7 +67,7 @@ class TWord(BlockModel):
 class TOtherBlock(BlockModel):
     block_type: str
 
-type TBlock = Union[TPage, TLine, TWord, TOtherBlock]
+type TBlock = TPage | TLine | TWord | TOtherBlock
 
 
 class TDocument(Model):

@@ -1,15 +1,18 @@
+import logging
 import os
 import shutil
 import sys
 from pathlib import Path
 
 import boto3
+from utils.logging import configure_logging
+
+configure_logging()
 
 import ocr
 from ocr.source import S3AssetSource, FileAssetSource
 from ocr.target import S3AssetTarget, FileAssetTarget, AssetTarget
 from utils.settings import script_settings, ScriptSettings
-
 
 def load_target(settings: ScriptSettings):
     if settings.output_type == 's3':
@@ -25,14 +28,14 @@ def load_target(settings: ScriptSettings):
             out_path=Path(settings.output_path)
         )
     else:
-        print("No output type specified.")
+        logging.info("No output type specified.")
         sys.exit(1)
 
 
 def load_source(settings: ScriptSettings, target: AssetTarget):
     if settings.input_skip_existing:
         skip_filenames = target.existing_filenames()
-        print("Found {} existing objects in output path.".format(len(skip_filenames)))
+        logging.info("Found {} existing objects in output path.".format(len(skip_filenames)))
     else:
         skip_filenames = []
 
@@ -53,7 +56,7 @@ def load_source(settings: ScriptSettings, target: AssetTarget):
             tmp_dir=Path(settings.tmp_path)
         )
     else:
-        print("No input type specified.")
+        logging.info("No input type specified.")
         sys.exit(1)
 
 
@@ -69,8 +72,8 @@ def main():
         os.makedirs(asset_item.tmp_dir, exist_ok=True)
         asset_item.load()
 
-        print()
-        print(asset_item.filename)
+        logging.info("")
+        logging.info(asset_item.filename)
         process_result = ocr.Processor(
             asset_item.tmp_path,
             asset_item.result_tmp_path,

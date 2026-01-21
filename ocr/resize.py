@@ -1,3 +1,5 @@
+import logging
+
 import pymupdf
 
 
@@ -8,10 +10,10 @@ def resize_page(doc: pymupdf.Document, page_index: int):
     page_is_narrow = page_rect.width < 144
     if page_is_narrow or src_page.rotation != 0:
         if page_is_narrow:
-            print("  Resizing/enlarging page with small dimensions {:.2f}x{:.2f}.".format(page_rect.width, page_rect.height))
+            logging.info("  Resizing/enlarging page with small dimensions {:.2f}x{:.2f}.".format(page_rect.width, page_rect.height))
             factor = 20
         else:
-            print("  Resetting page rotation from {} to 0.".format(src_page.rotation))
+            logging.info("  Resetting page rotation from {} to 0.".format(src_page.rotation))
             factor = 1
         src_page.set_rotation(0)
 

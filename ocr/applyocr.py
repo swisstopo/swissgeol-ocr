@@ -1,3 +1,5 @@
+import logging
+
 import pymupdf
 
 from ocr import Mask
@@ -36,14 +38,14 @@ def process_page(
         page_size = os.path.getsize(textract_doc_path)
         if page_size < ten_mb:
             break
-        print(f"  Page size is {page_size / 1024 / 1024:.2f} MB, trying to downscale images.")
+        logging.info(f"  Page size is {page_size / 1024 / 1024:.2f} MB, trying to downscale images.")
         # We only reduce the image resolution in the temporary PDF file that is used for AWS Textact, not in the
         # original PDF file.
         downscale_successful = downscale_images_x2(textract_doc, page_index=0)
         if downscale_successful:
             textract_doc.save(textract_doc_path, deflate=True, garbage=3, use_objstms=1)
         else:
-            print(f"  Downscale images was unsuccessful.")
+            logging.info(f"  Downscale images was unsuccessful.")
             break
 
     if os.path.getsize(textract_doc_path) < ten_mb:
@@ -56,10 +58,10 @@ def process_page(
         )
         lines_to_draw = page_ocr.apply_ocr()
         os.remove(textract_doc_path)
-        print("  {} new lines found".format(len(lines_to_draw)))
+        logging.info("  {} new lines found".format(len(lines_to_draw)))
         return lines_to_draw
     else:
-        print("  Could not reduce page size to below 10MB. Skipping page.")
+        logging.info("  Could not reduce page size to below 10MB. Skipping page.")
         return []
 
 

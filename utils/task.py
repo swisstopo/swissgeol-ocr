@@ -1,7 +1,6 @@
 import logging
 import threading
 import typing
-import uuid
 from dataclasses import dataclass
 from typing import Dict, TypeVar
 

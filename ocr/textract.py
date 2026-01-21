@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import botocore.exceptions
@@ -62,7 +63,7 @@ def textract(doc_path: Path, extractor: Textractor, tmp_file_path: Path, clip_re
 
 
 def backoff_hdlr(details):
-    print("Backing off {wait:0.1f} seconds after {tries} tries.".format(**details))
+    logging.info("Backing off {wait:0.1f} seconds after {tries} tries.".format(**details))
 
 
 @backoff.on_exception(backoff.expo,
@@ -72,7 +73,7 @@ def backoff_hdlr(details):
                       max_tries=3)
 def call_textract(extractor: Textractor, tmp_file_path: Path) -> dict | None:
     if os.path.getsize(tmp_file_path) >= 10 * 1024 * 1024:  # 10 MB
-        print("Page larger than 10MB. Skipping page.")
+        logging.info("Page larger than 10MB. Skipping page.")
         return None
     try:
         response = t_call.call_textract(
@@ -82,13 +83,13 @@ def call_textract(extractor: Textractor, tmp_file_path: Path) -> dict | None:
         )
 
     except extractor.exceptions.InvalidParameterException:
-        print("Encountered InvalidParameterException from Textract. Page might require more than 10MB memory. Skipping page.")
+        logging.info("Encountered InvalidParameterException from Textract. Page might require more than 10MB memory. Skipping page.")
         return None
     except botocore.exceptions.SSLError:
-        print("Encountered SSLError from Textract. Page might require more than 10MB memory. Skipping page.")
+        logging.info("Encountered SSLError from Textract. Page might require more than 10MB memory. Skipping page.")
         return None
     except extractor.exceptions.UnsupportedDocumentException:  # 1430.pdf page 18
-        print("Encountered UnsupportedDocumentException from Textract. Page might have excessive width or height. Skipping page.")
+        logging.info("Encountered UnsupportedDocumentException from Textract. Page might have excessive width or height. Skipping page.")
         return None
 
     return response
@@ -112,7 +113,7 @@ def clip_rects(main_rect: pymupdf.Rect) -> list[pymupdf.Rect]:
             for x0 in x_starts
             for y0 in y_starts
         ])
-        print("  Applying text extraction also to {} smaller page excerpts.".format(len(clip_rects) - 1))
+        logging.info("  Applying text extraction also to {} smaller page excerpts.".format(len(clip_rects) - 1))
         return clip_rects
 
 

@@ -28,7 +28,7 @@ def crop_images(out_doc: pymupdf.Document, page_index: int):
         # We had some issues with misplacement of the cropped image on pages with a non-trivial rotation, so to be on
         # the safe side, we enforce rotation=0. The preceding resize step should normally have reset the page rotation
         # already.
-        print("  Skipping page because rotation is not 0 but {}.".format(page.rotation))
+        logging.info("  Skipping page because rotation is not 0 but {}.".format(page.rotation))
         return
 
     images = [
@@ -41,7 +41,7 @@ def crop_images(out_doc: pymupdf.Document, page_index: int):
     if len(images) > 1:
         # Skip because we cannot reliably deal with overlapping images (e.g. their order might change if we crop and
         # replace one image but not the other, e.g. CHA0ECFE2F3FFE47728C76619E_01_profil.pdf).
-        print("  More than one image on the page, skipping image crop.")
+        logging.info("  More than one image on the page, skipping image crop.")
         return
 
     for dict in images:
@@ -54,7 +54,7 @@ def crop_images(out_doc: pymupdf.Document, page_index: int):
             extension = extracted_img['ext']
             if extension == 'jb2':
                 # Example PDF file with a JBIG2 image: A204.pdf
-                print("  Skipping JBIG2 image.")
+                logging.info("  Skipping JBIG2 image.")
                 continue
 
             # allow images that are only slightly larger than the page, as cropping the image is not likely to reduce
@@ -68,16 +68,16 @@ def crop_images(out_doc: pymupdf.Document, page_index: int):
             )
 
             if not page_rect_with_margin.contains(image_bbox):
-                print("  Cropping {} image (bbox {}, page.rect {}).".format(extension, image_bbox, page.rect))
+                logging.info("  Cropping {} image (bbox {}, page.rect {}).".format(extension, image_bbox, page.rect))
                 transform = pymupdf.Matrix(dict["transform"])
 
                 if not page.rect.intersects(image_bbox):
-                    print("  Image does not intersect the visible part of the page. Skipping image.")
+                    logging.info("  Image does not intersect the visible part of the page. Skipping image.")
                     continue
 
                 rotation = rotation_from_transform_matrix(transform)
                 if rotation is None:
-                    print("  Image rotation could not be computed from transform matrix. Skipping image.")
+                    logging.info("  Image rotation could not be computed from transform matrix. Skipping image.")
                     continue
 
                 insert_image_location = pymupdf.Rect(page.rect)
@@ -107,10 +107,10 @@ def crop_images(out_doc: pymupdf.Document, page_index: int):
                 old_size = dict["size"]
                 new_size = len(img_byte_arr)
                 if len(img_byte_arr) > 0.8 * dict["size"]:
-                    print(f"  Skipping crop as new image is not significantly smaller ({old_size} -> {new_size} bytes).")
+                    logging.info(f"  Skipping crop as new image is not significantly smaller ({old_size} -> {new_size} bytes).")
                     continue
                 else:
-                    print(f"  Cropped image is significantly smaller ({old_size} -> {new_size} bytes), replacing...")
+                    logging.info(f"  Cropped image is significantly smaller ({old_size} -> {new_size} bytes), replacing...")
 
                 page.delete_image(xref)
                 page.insert_image(
@@ -119,7 +119,7 @@ def crop_images(out_doc: pymupdf.Document, page_index: int):
                     rotate=-rotation
                 )
         except ValueError:
-            print("  Encountered ValueError, skipping image crop.")
+            logging.info("  Encountered ValueError, skipping image crop.")
 
 
 def replace_jpx_images(doc: pymupdf.Document, page_index: int):
@@ -132,13 +132,13 @@ def replace_jpx_images(doc: pymupdf.Document, page_index: int):
                 # Some viewer, most notably the Edge browser, have problems displaying JPX images (slow / bad quality).
                 # Therefore, we convert them to JPG.
                 image_bbox = pymupdf.Rect(*dict["bbox"])
-                print(f"  Converting JPX image to JPG (bbox {image_bbox}, page.rect {page.rect}).")
+                logging.info(f"  Converting JPX image to JPG (bbox {image_bbox}, page.rect {page.rect}).")
 
                 img = _pixmap_from_xref(doc, xref)
                 if img:
                     page.replace_image(xref, stream=img.tobytes('jpg', jpg_quality=85))
         except ValueError:
-            print(f"  Encountered ValueError for xref {xref}, skipping replace_jpx_images.")
+            logging.info(f"  Encountered ValueError for xref {xref}, skipping replace_jpx_images.")
 
 
 def downscale_images_x2(doc: pymupdf.Document, page_index: int) -> bool:
@@ -155,7 +155,7 @@ def downscale_images_x2(doc: pymupdf.Document, page_index: int) -> bool:
             img = Image.open(fp)
 
             if ext == "jpeg":
-                print(f"  Downscaling {ext} image (width {dict['width']}, height {dict['height']}, bbox {image_bbox}, page.rect {page.rect}).")
+                logging.info(f"  Downscaling {ext} image (width {dict['width']}, height {dict['height']}, bbox {image_bbox}, page.rect {page.rect}).")
                 (width, height) = (img.width // 2, img.height // 2)
                 if not (width > 0 and height > 0):
                     continue
@@ -163,7 +163,7 @@ def downscale_images_x2(doc: pymupdf.Document, page_index: int) -> bool:
             else:
                 # Always use JPEG when downscaling, as downscaling other image formats such as PNG can lead to strange
                 # errors (e.g. 23dc42f0-5937-11ef-a4fb-00155d7ba234.pdf from Boreholes)
-                print(f"  Converting {ext} image to JPEG (width {dict['width']}, height {dict['height']}, bbox {image_bbox}, page.rect {page.rect}).")
+                logging.info(f"  Converting {ext} image to JPEG (width {dict['width']}, height {dict['height']}, bbox {image_bbox}, page.rect {page.rect}).")
 
             bytes_io = io.BytesIO()
             img.save(bytes_io, format="jpeg")
@@ -173,7 +173,7 @@ def downscale_images_x2(doc: pymupdf.Document, page_index: int) -> bool:
             page.clean_contents()
             downscale_successful = True
         except ValueError:
-            print(f"  Encountered ValueError for xref {xref}, skipping downscale_images_x2.")
+            logging.info(f"  Encountered ValueError for xref {xref}, skipping downscale_images_x2.")
 
     return downscale_successful
 
@@ -190,4 +190,4 @@ def _pixmap_from_xref(doc: pymupdf.Document, xref: int) -> pymupdf.Pixmap:
 
         return img
     except FzErrorFormat:
-        print("  Unsupported image format. Skipping image.")
+        logging.info("  Unsupported image format. Skipping image.")

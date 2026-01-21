@@ -1,35 +1,21 @@
-# swissgeol.ch OCR service
+# swissgeol.ch OCR pipeline
 
-Source code for the OCR scripts that are used at the Swiss [Federal Office of Topography swisstopo](
-https://www.swisstopo.admin.ch/) for digitising geological documents for internal use as well as for publication on the 
-[swissgeol.ch](https://www.swissgeol.ch/) platform, in particular to the  applications [assets.swissgeol.ch](
-https://assets.swissgeol.ch/) ([GitHub Repo](https://github.com/swisstopo/swissgeol-assets-suite)) and [
-boreholes.swissgeol.ch](https://boreholes.swissgeol.ch/) ([GitHub Repo](
-https://github.com/swisstopo/swissgeol-boreholes-suite)). 
+An end-to-end OCR pipeline (from raw scanned PDF file to searchable PDF file) based on the [AWS Textract](https://aws.amazon.com/de/textract/) cloud service.
 
-OCR processing is supported both in script form and as REST API.
-To process PDF files, the [AWS Textract](https://aws.amazon.com/de/textract/) service is called for each page.
-The detected text is then put into the PDF document by using the PyMuPDF and Reportlab libraries.
-This enables selecting and searching for text in any PDF viewer.
+This pipeline was developed by the Swiss [Federal Office of Topography swisstopo](https://www.swisstopo.admin.ch/). At swisstopo, it is used for digitising geological documents for internal use as well as for publication on the [swissgeol.ch](https://www.swissgeol.ch/) platform. In particular, the OCR pipeline has been integrated in the web applications [assets.swissgeol.ch](https://assets.swissgeol.ch/) ([GitHub Repo](https://github.com/swisstopo/swissgeol-assets-suite)) and [boreholes.swissgeol.ch](https://boreholes.swissgeol.ch/) ([GitHub Repo](https://github.com/swisstopo/swissgeol-boreholes-suite)).
 
-The resulting functionality is similar to the [OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/) software,
-but with AWS Textract as the underlying OCR model instead of [Tesseract](https://tesseract-ocr.github.io/).
-Tesseract is open-source while AWS Textract is a commercial API.
-However, AWS Textract is more scalable and gives better quality results on our inputs,
-which is more important for our use cases.
+The pipeline can be run as a Python script (processing either local files or objects in an S3 bucket) or deployed as an API (processing objects in an S3 bucket).
 
-Additional features:
+The overall pipeline functionality is similar to the [OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/) software, but with AWS Textract as the underlying OCR model instead of [Tesseract](https://tesseract-ocr.github.io/). If you have strong requirements regarding data protection, data soveriegnty or model transparency, then an open source OCR model such as Tesseract might be preferrable. On the other hand, a commercial API such as AWS Textract brings advantages such as scalability and high OCR quality at a relatively small price per page. Swisstopo's motivation for using AWS Textract and developing an OCR pipeline in this way is documented in more details on the page [docs/**Motivation.md**](docs/Motivation.md).
 
-- If necessary, PDF pages rescaled, and images are cropped and/or converted from JPX to JPG.
-- PDF pages that are already "digitally born" are detected, and can be skipped when applying OCR.
-- When a scanned PDF page already contains digital text from an older OCR run, this text can be removed, and the OCR can
-  be re-applied.
-- Pages with large dimensions are cut into smaller sections, that are sent separately to the AWS Textract service in
-  multiple requests. Indeed, AWS Textract has
-  certain [limits on file size and page dimensions](https://docs.aws.amazon.com/textract/latest/dg/limits-document.html),
-  and even within those limits, the quality of the results is better when the input dimensions are smaller.
-- Adds metadata to the object after processing, currently containing:
-  - `X-Amz-Meta-Pagecount`: The number of pages in the document if available, else the key is not set
+Features:
+- Creates a new PDF file where the text detected by the AWS Textract OCR model can be selected and searched for text in any PDF viewer.
+- PDF pages that are "digitally born" are detected and skipped when applying OCR.
+- For PDF files that were previously processed by a different OCR pipeline, existing hidden text is removed, and OCR is re-applied, ensuring consistent OCR quality.
+- Applies useful preprocessing steps such as scaling of PDF pages with incorrect dimensions, cropping of images, conversion of JPX images to JPG.
+- Pages with large dimensions are cut into smaller sections, to respect the AWS Textract [limits on file size and page dimensions](https://docs.aws.amazon.com/textract/latest/dg/limits-document.html) without compromising on quality.
+- Adds metadata to an S3 object after processing, currently containing:
+  - `X-Amz-Meta-Pagecount`: The number of pages in the document.
 
 ## Usage
 

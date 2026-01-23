@@ -1,27 +1,29 @@
-import pymupdf
-from trp import Line
-import trp.trp2 as t2
+from dataclasses import dataclass
 
+import pymupdf
+from ocr.textract_schema import Line, Polygon
+
+
+@dataclass
 class TextWord:
-    def __init__(self, text: str, derotated_rect: pymupdf.Rect, orientation: float):
-        self.text = text
-        self.derotated_rect = derotated_rect
-        self.orientation = orientation
+    text: str
+    derotated_rect: pymupdf.Rect
+    orientation: float
 
     @staticmethod
     def from_textract(word, derotator):
-        derotated_rect, orientation = derotator.derotate(word.geometry)
+        derotated_rect, orientation = derotator.derotate(word.geometry.polygon)
         return TextWord(word.text, derotated_rect, orientation)
 
 
+@dataclass
 class TextLine:
-    def __init__(self, derotated_rect: pymupdf.Rect, orientation: float, rect: pymupdf.Rect, text: str, confidence: float, words: list[TextWord]):
-        self.text = text
-        self.orientation = orientation
-        self.derotated_rect = derotated_rect
-        self.rect = rect
-        self.confidence = confidence
-        self.words = words
+    text: str
+    orientation: float
+    derotated_rect: pymupdf.Rect
+    rect: pymupdf.Rect
+    confidence: float
+    words: list[TextWord]
 
     @staticmethod
     def from_textract(line: Line, page_height: float, transform: pymupdf.Matrix):
@@ -37,12 +39,12 @@ class TextLine:
 
         # assume rotation of first word applies to all words in the line
         first_word = line.words[0]
-        rotate = round(TextLine.__get_degree_from_polygon(first_word.geometry.polygon))
+        rotate = round(first_word.geometry.polygon.rotation_degrees)
 
         derotator = GeometryDerotator(rotate, transform, page_height)
-        derotated_rect, orientation = derotator.derotate(line.geometry)
+        derotated_rect, orientation = derotator.derotate(line.geometry.polygon)
 
-        bbox = line.geometry.boundingBox
+        bbox = line.geometry.bounding_box
         textract_rect = pymupdf.Rect(bbox.left, bbox.top, bbox.left + bbox.width,
                                   bbox.top + bbox.height)
         rect = textract_rect * transform
@@ -52,24 +54,7 @@ class TextLine:
 
         words = [TextWord.from_textract(word, derotator) for word in line.words]
 
-        return TextLine(derotated_rect, orientation, rect, text, confidence, words)
-
-
-    @staticmethod
-    def __get_degree_from_polygon(poly: list[t2.TPoint] = None) -> float:
-        """
-        Returns degrees as float -180.0 < x < 180.0
-
-        In the future, we might want to read this directly from the RotationAngle field of the AWS Textract API response,
-        but this new field is not yet implemented in the amazon-textract-textractor Python package.
-        """
-        import math
-        if not poly:
-            raise ValueError("no polygon given")
-        point_0 = poly[0]
-        point_1 = poly[1]
-        orientation = math.degrees(math.atan2(point_1.y - point_0.y, point_1.x - point_0.x))
-        return orientation
+        return TextLine(text, orientation, derotated_rect, rect, confidence, words)
 
 
 class GeometryDerotator:
@@ -78,14 +63,14 @@ class GeometryDerotator:
         self.transform = transform
         self.page_height = page_height
 
-    def derotate(self, geometry) -> (pymupdf.Rect, float):
-        polygon = geometry.polygon
+    def derotate(self, polygon: Polygon) -> (pymupdf.Rect, float):
+        points = polygon.points
         orientation = self.orientation
 
-        top_left = pymupdf.Point(polygon[0].x, polygon[0].y) * self.transform
-        top_right = pymupdf.Point(polygon[1].x, polygon[1].y) * self.transform
-        bottom_left = pymupdf.Point(polygon[-1].x, polygon[-1].y) * self.transform
-        bottom_right = pymupdf.Point(polygon[-2].x, polygon[-2].y) * self.transform
+        top_left = pymupdf.Point(points[0].x, points[0].y) * self.transform
+        top_right = pymupdf.Point(points[1].x, points[1].y) * self.transform
+        bottom_left = pymupdf.Point(points[-1].x, points[-1].y) * self.transform
+        bottom_right = pymupdf.Point(points[-2].x, points[-2].y) * self.transform
         quad = pymupdf.Quad(top_left, top_right, bottom_left, bottom_right)
 
         closest_multiple_of_90_deg = round(orientation / 90) * 90

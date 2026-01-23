@@ -1,37 +1,25 @@
-# swissgeol.ch OCR service
+# swissgeol.ch OCR pipeline
 
-Source code for the OCR scripts that are used at the Swiss [Federal Office of Topography swisstopo](
-https://www.swisstopo.admin.ch/) for digitising geological documents for internal use as well as for publication on the 
-[swissgeol.ch](https://www.swissgeol.ch/) platform, in particular to the  applications [assets.swissgeol.ch](
-https://assets.swissgeol.ch/) ([GitHub Repo](https://github.com/swisstopo/swissgeol-assets-suite)) and [
-boreholes.swissgeol.ch](https://boreholes.swissgeol.ch/) ([GitHub Repo](
-https://github.com/swisstopo/swissgeol-boreholes-suite)). 
+An end-to-end OCR pipeline (from raw scanned PDF file to searchable PDF file) based on the [AWS Textract](https://aws.amazon.com/de/textract/) cloud service.
 
-OCR processing is supported both in script form and as REST API.
-To process PDF files, the [AWS Textract](https://aws.amazon.com/de/textract/) service is called for each page.
-The detected text is then put into the PDF document by using the PyMuPDF and Reportlab libraries.
-This enables selecting and searching for text in any PDF viewer.
+This pipeline was developed by the Swiss [Federal Office of Topography swisstopo](https://www.swisstopo.admin.ch/). At swisstopo, it is used to digitize geological documents for internal use as well as for publication on the [swissgeol.ch](https://www.swissgeol.ch/) platform. In particular, the OCR pipeline has been integrated into the web applications [assets.swissgeol.ch](https://assets.swissgeol.ch/) ([GitHub Repo](https://github.com/swisstopo/swissgeol-assets-suite)) and [boreholes.swissgeol.ch](https://boreholes.swissgeol.ch/) ([GitHub Repo](https://github.com/swisstopo/swissgeol-boreholes-suite)).
 
-The resulting functionality is similar to the [OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/) software,
-but with AWS Textract as the underlying OCR model instead of [Tesseract](https://tesseract-ocr.github.io/).
-Tesseract is open-source while AWS Textract is a commercial API.
-However, AWS Textract is more scalable and gives better quality results on our inputs,
-which is more important for our use cases.
+The pipeline can be run as a Python script (processing either local files or objects in an S3 bucket) or deployed as an API (processing objects in an S3 bucket).
 
-Additional features:
+The overall functionality of the pipeline is similar to that of the [OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/) software, but with AWS Textract as the underlying OCR model instead of [Tesseract](https://tesseract-ocr.github.io/). If you have strict requirements regarding data protection, data sovereignty or model transparency, then an open-source OCR model such as Tesseract might be preferable. On the other hand, a commercial API such as AWS Textract offers advantages such as scalability and high OCR quality at a relatively low price per page. Swisstopo's motivation for using AWS Textract and developing an OCR pipeline in this way is documented in more details on the page [docs/**Motivation.md**](docs/Motivation.md).
 
-- If necessary, PDF pages rescaled, and images are cropped and/or converted from JPX to JPG.
-- PDF pages that are already "digitally born" are detected, and can be skipped when applying OCR.
-- When a scanned PDF page already contains digital text from an older OCR run, this text can be removed, and the OCR can
-  be re-applied.
-- Pages with large dimensions are cut into smaller sections, that are sent separately to the AWS Textract service in
-  multiple requests. Indeed, AWS Textract has
-  certain [limits on file size and page dimensions](https://docs.aws.amazon.com/textract/latest/dg/limits-document.html),
-  and even within those limits, the quality of the results is better when the input dimensions are smaller.
-- Adds metadata to the object after processing, currently containing:
-  - `X-Amz-Meta-Pagecount`: The number of pages in the document if available, else the key is not set
+Features:
+- Creates a new PDF file in which the text detected by the AWS Textract OCR model can be selected and searched for text in any PDF viewer.
+- "Digitally born" PDF pages are detected and skipped when applying OCR.
+- PDF files that were previously processed by a different OCR pipeline have their existing hidden text removed, and OCR is reapplied to ensure consistent OCR quality.
+- Useful preprocessing steps are applied, such as scaling of PDF pages with incorrect dimensions, cropping of images, and converting JPX images to JPG.
+- Pages with large dimensions are cut into smaller sections, to respect AWS Textract's [limits on file size and page dimensions](https://docs.aws.amazon.com/textract/latest/dg/limits-document.html) without compromising on quality.
+- After processing, metadata is added to an S3 object:
+  - `X-Amz-Meta-Pagecount`: The number of pages in the document.
 
-## Installation
+## Usage
+
+### 1. Installation
 
 Python 3.12 is required.
 
@@ -43,8 +31,15 @@ source venv/bin/activate
 pip install -r requirements.txt 
 ```
 
-## Usage
-The script can be executed like any normal Python script file:
+### 2. Configuration
+
+Input source, output destination and other settings need to be **configured via environment variables**. There are different required environment variables depending on whether the pipeline needs to run as a script or as an API service. Detailed documentation is available under [docs/Configuration.md](docs/Configuration.md).
+
+### 3a. Running as a script
+
+When running as a Python script, PDF files can be processed from a local directory or from an S3 bucket. Likewise, the output PDF files can be written to either a local directory or an S3 bucket.
+
+After configuring the required environment variables, the script can be executed like any normal Python script file:
 ```bash
 python main.py
 ```
@@ -55,105 +50,62 @@ To run the script while additionally appending all output to a log file, you can
 python -u main.py | tee output.log 
 ```
 
-The API is built on [FastAPI](https://fastapi.tiangolo.com/) and can be run by its CLI:
+### 3b. Running as an API
+
+When deployed as an API, only reading from and writing to S3 is supported.
+
+The API is built on [FastAPI](https://fastapi.tiangolo.com/). After configuring the required environment variables, the API can be started using the following command:
 ```bash
 fastapi run api.py
 ```
 
-## Configuration
+Unless configured otherwise, this will start the API at http://0.0.0.0:8000 and detailed documentation (as well as en interface to test the different entpoints) will be accessible at http://0.0.0.0:8000/docs.
 
-Environment variables are read from the file `.env`.
+#### Endpoint `POST /`
 
-If an environment variable `OCR_PROFILE` is specified, then environment variables are additionally read
-from `.env.{OCR_PROFILE}`, with the values from this file potentially overriding the values from `.env`.
+> Starts OCR on a given PDF file.
+> 
+> Example JSON payload:
+> ```json
+> {
+>   "file": "example.pdf"
+> }
+> ```
+> 
+> Responds with HTTP status code 204 (_No Content_) if the OCR process was successfully started.
 
-For example, run the script as `OCR_PROFILE=assets python -m main` to use the environment variables from `.env.assets`.
+#### Endpoint `POST /collect`
 
-> The API and Script require different configurations.
-> Please ensure that you are using the correct environment variables depending on what you want to execute.
+> Polls whether the OCR processing of a given PDF file has finished.
+> 
+> Example JSON payload:
+> ```json
+> {
+>   "file": "example.pdf"
+> }
+> ```
+> 
+> Responds with HTTP status code 200 and a JSON response body, where the field `has_finished` indicates if the corresponding OCR process has finished or not yet.
+> 
+> Example JSON response:
+> 
+> ```json
+> {
+>   "has_finished": true,
+>   "data": null
+> }
+> ```
+> 
+> Responds with HTTP status code 422 (_Error: Unprocessable Entity_) if no OCR process was ever started for this file.
 
-When setting the environment variable `INPUT_DEBUG_PAGE` to a particular page number, the pipeline will only process 
-that page, and additional create a version of the page with only the OCR layer (with visible text).
+## Governance
 
-### Script Configuration
+This repository is managed by the Swiss Federal Office of Topography [swisstopo](https://www.swisstopo.admin.ch/). The project lead and primary maintainer is Stijn Vermeeren [@stijnvermeeren-swisstopo](https://www.github.com/stijnvermeeren-swisstopo). Support has come from external contractors at [Visium](https://www.visium.ch/) and [EBP](https://www.ebp.global/). Individual contributors are listed on [GitHub's _Contributors_ page](https://github.com/swisstopo/swissgeol-ocr/graphs/contributors).
 
-AWS credentials can be provided using
-a [credentials file](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) (`~/.aws/credentials`). The
-environment variable `AWS_TEXTRACT_PROFILE` in the configuration examples below refers to a profile in that file.
+We welcome suggestions, bug reports and code contributions from third parties, because external feedback is also likely to improve the project for our internal use. However, the priority of any external request will have to be evaluated based on their compatibility with our legal mandate as a government agency.
 
-#### `.env.assets`
+### Licence
 
-- Reads and writes asset files directly from/to S3.
-- Applies OCR more defensively, only to pages without pre-existing visible digital text.
-- Uses a higher confidence threshold (0.7), because for publication on assets.swissgeol.ch, we'd rather not put any OCR'
-  d text in the document at all, rather than putting nonsense in the document.
+This project is released as open-source software, under the principle of "_public money, public code_", in accordance with the 2023 federal law "[_EMBAG_](https://www.fedlex.admin.ch/eli/fga/2023/787/de)", and following the guidance of the [tools for OSS published by the Federal Chancellery](https://www.bk.admin.ch/bk/en/home/digitale-transformation-ikt-lenkung/bundesarchitektur/open_source_software/hilfsmittel_oss.html).
 
-```sh
-AWS_TEXTRACT_PROFILE=default
-
-INPUT_TYPE=S3
-INPUT_AWS_PROFILE=s3-assets
-INPUT_S3_BUCKET=swissgeol-assets-swisstopo
-INPUT_S3_PREFIX=asset/asset_files/
-INPUT_SKIP_EXISTING=TRUE
-
-OUTPUT_TYPE=S3
-OUTPUT_AWS_PROFILE=s3-assets
-OUTPUT_S3_BUCKET=swissgeol-assets-swisstopo
-OUTPUT_S3_PREFIX=asset/asset_files_new_ocr/
-
-CONFIDENCE_THRESHOLD=0.7
-CLEANUP_TMP_FILES=TRUE
-```
-
-#### `env.boreholes`
-
-- Read and writes files from/to a local directory.
-- Applies OCR more aggressively, also e.g. to images inside digitally-born PDF documents, as long as the newly detected
-  text does not overlap with any pre-existing digital text.
-- Uses a lower confidence threshold (0.45), as especially for extracting stratigraphy data, it is better to know all
-  places where some text is located in the document, even when we are not so sure how to actually read the text.
-
-```sh
-AWS_TEXTRACT_PROFILE=default
-
-INPUT_TYPE=path
-INPUT_PATH=/home/stijn/bohrprofile-zurich/
-
-OUTPUT_TYPE=path
-OUTPUT_PATH=/home/stijn/bohrprofile-zurich/ocr/
-
-CONFIDENCE_THRESHOLD=0.45
-USE_AGGRESSIVE_STRATEGY=TRUE
-```
-
-### API Configuration
-
-```sh
-# The directory at which temporary files are to be stored.
-TMP_PATH=tmp/
-
-# The local AWS profile that will be used to access Textract.
-#
-# If left empty, the credentials will be read from the environment.
-# This allows the use of service accounts when deploying to K8s.
-AWS_PROFILE=swisstopo-ngm
-
-# Alternatives to `AWS_PROFILE` to allow you to specify the access keys directly.
-# AWS_ACCESS_KEY=
-# AWS_SECRET_ACCESS_KEY=
-
-# During local development, an S3-compatible service like MinIO (https://min.io/) can be used.
-# In this case, the endpoint will look like `http://minio:9000`.
-# Note that if MinIO is used, you still need to configure AWS_DEFAULT_REGION if none is set in your AWS credentials.
-S3_INPUT_ENDPOINT=https://s3.eu-central-1.amazonaws.com
-S3_INPUT_BUCKET=swissgeol-assets-swisstopo
-S3_INPUT_FOLDER=asset_files/
-
-S3_OUTPUT_ENDPOINT=https://s3.eu-central-1.amazonaws.com
-S3_OUTPUT_BUCKET=swissgeol-assets-swisstopo
-S3_OUTPUT_FOLDER=new_ocr_output/
-
-CONFIDENCE_THRESHOLD=0.7
-```
-
+The source code is licensed under the [AGPL License](LICENSE). This is due to the licensing of certain dependencies, most notably [PyMuPDF](https://pymupdf.readthedocs.io/en/latest/about.html#license-and-copyright), which is only avialable under either the AGPL license or a commercial license. If we can remove this dependency in the future, then we will switch to a more permissive license for this project.

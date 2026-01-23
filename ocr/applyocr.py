@@ -1,3 +1,5 @@
+import logging
+
 import pymupdf
 
 from ocr import Mask
@@ -36,14 +38,14 @@ def process_page(
         page_size = os.path.getsize(textract_doc_path)
         if page_size < ten_mb:
             break
-        print(f"  Page size is {page_size / 1024 / 1024:.2f} MB, trying to downscale images.")
+        logging.info(f"  Page size is {page_size / 1024 / 1024:.2f} MB, trying to downscale images.")
         # We only reduce the image resolution in the temporary PDF file that is used for AWS Textact, not in the
         # original PDF file.
         downscale_successful = downscale_images_x2(textract_doc, page_index=0)
         if downscale_successful:
             textract_doc.save(textract_doc_path, deflate=True, garbage=3, use_objstms=1)
         else:
-            print(f"  Downscale images was unsuccessful.")
+            logging.info(f"  Downscale images was unsuccessful.")
             break
 
     if os.path.getsize(textract_doc_path) < ten_mb:
@@ -54,12 +56,12 @@ def process_page(
             mask=mask,
             tmp_path_prefix=tmp_path_prefix
         )
-        lines_to_draw = page_ocr.apply_ocr(clip_rect=page.rect)
+        lines_to_draw = page_ocr.apply_ocr()
         os.remove(textract_doc_path)
-        print("  {} new lines found".format(len(lines_to_draw)))
+        logging.info("  {} new lines found".format(len(lines_to_draw)))
         return lines_to_draw
     else:
-        print("  Could not reduce page size to below 10MB. Skipping page.")
+        logging.info("  Could not reduce page size to below 10MB. Skipping page.")
         return []
 
 
@@ -85,33 +87,34 @@ class OCR:
     def tmp_file_path(tmp_path_prefix, extension: str) -> Path:
         return Path("{}_{}.{}".format(tmp_path_prefix, uuid4(), extension))
 
-    def apply_ocr(self, clip_rect: pymupdf.Rect):
-        """Apply OCR with double page workaround"""
-        text_lines = self._ocr_text_lines(clip_rect)
+    def apply_ocr(self):
+        """Apply OCR."""
+        text_lines = self._ocr_text_lines()
 
-        if ((self.page_rect.height < MAX_DIMENSION_POINTS and self.page_rect.width < MAX_DIMENSION_POINTS) and (
-                len(text_lines) > 30
-        ) and all(
-                not self._intersects_middle(line.rect, line.confidence) for line in text_lines
-        )):
-            print("  Double page workaround")
-            page_rect = self.page_rect
+        draw_lines = []
+        for reading_order_block in sort_lines(text_lines):
+            lines = reading_order_block.lines
 
-            left_clip_rect = (page_rect * pymupdf.Matrix(0.5, 1))
-            left_text_lines = self._ocr_text_lines(left_clip_rect)
-            lines_to_draw = get_ocr_lines(left_text_lines, self.mask, self.confidence_threshold)
+            line_confidence_values = [line.confidence for line in lines]
+            avg_confidence = sum(line_confidence_values) / len(line_confidence_values)
+            if avg_confidence < self.confidence_threshold:
+                # if the block has a low overall confidence (e.g. handwritten text) then individual lines are only included
+                # when they have a very high confidence.
+                line_confidence_threshold = (1 + self.confidence_threshold) / 2
+            else:
+                # otherwise, we are flexible and allow anything that is not too far below the avg confidence
+                line_confidence_threshold = avg_confidence / 2
 
-            right_clip_rect = (page_rect * pymupdf.Matrix(0.5, 1).pretranslate(page_rect.width, 0))
-            right_text_lines = self._ocr_text_lines(right_clip_rect)
-            lines_to_draw.extend(get_ocr_lines(right_text_lines, self.mask, self.confidence_threshold))
+            for line in lines:
+                if not self.mask.intersects(line.rect):
+                    if line.confidence > line_confidence_threshold:
+                        draw_lines.append(line)
 
-            return lines_to_draw
-        else:
-            return get_ocr_lines(text_lines, self.mask, self.confidence_threshold)
+        return draw_lines
 
-    def _ocr_text_lines(self, clip_rect: pymupdf.Rect) -> list[TextLine]:
+    def _ocr_text_lines(self) -> list[TextLine]:
         text_lines = []
-        final_clip_rects = clip_rects(clip_rect)
+        final_clip_rects = clip_rects(self.page_rect)
         for final_clip_rect in final_clip_rects:
             new_lines = textract(
                 self.textract_doc_path,
@@ -121,34 +124,3 @@ class OCR:
             )
             text_lines = combine_text_lines(text_lines, new_lines)
         return text_lines
-
-    def _intersects_middle(self, line_rect: pymupdf.Rect, confidence: float) -> bool:
-        page_middle = (self.page_rect.x0 + self.page_rect.x1) / 2
-        return confidence > self.confidence_threshold and not(line_rect.x0 > page_middle or line_rect.x1 < page_middle)
-
-
-def get_ocr_lines(
-        text_lines: list[TextLine],
-        mask: Mask,
-        confidence_threshold: float
-) -> list[TextLine]:
-    draw_lines = []
-    for reading_order_block in sort_lines(text_lines):
-        lines = reading_order_block.lines
-
-        line_confidence_values = [line.confidence for line in lines]
-        avg_confidence = sum(line_confidence_values) / len(line_confidence_values)
-        if avg_confidence < confidence_threshold:
-            # if the block has a low overall confidence (e.g. handwritten text) then individual lines are only included
-            # when they have a very high confidence.
-            line_confidence_threshold = (1 + confidence_threshold) / 2
-        else:
-            # otherwise, we are flexible and allow anything that is not too far below the avg confidence
-            line_confidence_threshold = avg_confidence / 2
-
-        for line in lines:
-            if not mask.intersects(line.rect):
-                if line.confidence > line_confidence_threshold:
-                    draw_lines.append(line)
-
-    return draw_lines

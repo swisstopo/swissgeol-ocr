@@ -1,10 +1,11 @@
 import dataclasses
+import logging
 import os
 import subprocess
 from pathlib import Path
 
 import pymupdf
-from mypy_boto3_textract import TextractClient as Textractor
+from mypy_boto3_textract import TextractClient
 from pymupdf import mupdf
 
 from ocr.mask import Mask
@@ -31,7 +32,7 @@ class Processor:
     output_path: Path
     debug_page: int | None
     tmp_dir: Path
-    textractor: Textractor
+    textract_client: TextractClient
     confidence_threshold: float
     use_aggressive_strategy: bool
 
@@ -40,7 +41,7 @@ class Processor:
             number_of_pages = self.process_pdf(self.input_path)
         except (ValueError, mupdf.FzErrorArgument, mupdf.FzErrorFormat) as e:
             gs_preprocess_path = self.tmp_dir / "gs.pdf"
-            print(f"Encountered {e.__class__.__name__}: {e}. Trying Ghostscript preprocessing.")
+            logging.info(f"Encountered {e.__class__.__name__}: {e}. Trying Ghostscript preprocessing.")
             subprocess.call([
                 "gs",
                 "-sDEVICE=pdfwrite",
@@ -69,7 +70,7 @@ class Processor:
         for page_index, _ in enumerate(iter(doc)):
             page_number = page_index + 1
             if not self.debug_page or page_number == self.debug_page:
-                print(f"{os.path.basename(in_path)}, page {page_number}/{in_page_count}")
+                logging.info(f"{os.path.basename(in_path)}, page {page_number}/{in_page_count}")
                 self.process_page(page_index, doc, add_debug_page=bool(self.debug_page))
                 pymupdf.TOOLS.store_shrink(100)
 
@@ -124,10 +125,10 @@ class Processor:
             if not digitally_born:
                 clean_old_ocr(new_page)
             else:
-                print(" Skipping digitally-born page.")
+                logging.info(" Skipping digitally-born page.")
                 return
         tmp_path_prefix = os.path.join(self.tmp_dir, f"page{page_number}")
-        lines_to_draw = process_page(doc, new_page, self.textractor, tmp_path_prefix,
+        lines_to_draw = process_page(doc, new_page, self.textract_client, tmp_path_prefix,
                                      self.confidence_threshold, mask)
 
         text_layer_path = os.path.join(self.tmp_dir, f"page{page_number}.pdf")

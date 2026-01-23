@@ -1,3 +1,5 @@
+import logging
+
 import pymupdf
 from ocr.mask import Mask
 
@@ -49,7 +51,7 @@ def clean_old_ocr(page: pymupdf.Page):
         # when removing part of some text, the remaining text sometimes seems to mysteriously move to a different
         # position on the page.
         page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE)
-        print("  {} boxes removed".format(len(rects)))
+        logging.info("  {} boxes removed".format(len(rects)))
 
 
 def clean_old_ocr_aggressive(page: pymupdf.Page) -> Mask:
@@ -110,9 +112,9 @@ def clean_old_ocr_aggressive(page: pymupdf.Page) -> Mask:
         # when removing part of some text, the remaining text sometimes seems to mysteriously move to a different
         # position on the page.
         page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE)
-        print("  {} boxes removed".format(counter))
+        logging.info("  {} boxes removed".format(counter))
 
     if len(possibly_visible_text):
-        print("  {} boxes preserved".format(len(possibly_visible_text)))
+        logging.info("  {} boxes preserved".format(len(possibly_visible_text)))
 
     return mask

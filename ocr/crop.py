@@ -3,6 +3,7 @@ import io
 import pymupdf
 from pymupdf.mupdf import FzErrorFormat
 from PIL import Image
+import logging
 
 
 def rotation_from_transform_matrix(transform: pymupdf.Matrix) -> int | None:

@@ -16,33 +16,27 @@ description:
       the AWS Textract cloud service
     longDescription: >-
       An end-to-end OCR pipeline (from raw scanned PDF file to searchable PDF
-      file) based on the [AWS Textract](https://aws.amazon.com/de/textract/)
-      cloud service.
+      file) based on the AWS Textract cloud service 
+      (https://aws.amazon.com/de/textract/).
 
-      This pipeline was developed by the Swiss [Federal Office of Topography
-      swisstopo](https://www.swisstopo.admin.ch/). At swisstopo, it is used for
-      digitising geological documents for internal use as well as for
-      publication on the [swissgeol.ch](https://www.swissgeol.ch/) platform. In
-      particular, the OCR pipeline has been integrated in the web applications
-      [assets.swissgeol.ch](https://assets.swissgeol.ch/) and
-      [boreholes.swissgeol.ch](https://boreholes.swissgeol.ch/).
+      This pipeline was developed by the Swiss Federal Office of Topography
+      swisstopo. At swisstopo, it is used for digitising geological documents 
+      for internal use as well as for publication on the swissgeol.ch platform.
+      In particular, the OCR pipeline has been integrated in the web applications
+      assets.swissgeol.ch and boreholes.swissgeol.ch.
 
       The pipeline can be run as a Python script (processing either local files
       or objects in an S3 bucket) or deployed as an API (processing objects in
       an S3 bucket).
 
-      The overall pipeline functionality is similar to the
-      [OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/) software, but with
-      AWS Textract as the underlying OCR model instead of
-      [Tesseract](https://tesseract-ocr.github.io/). If you have strong
-      requirements regarding data protection, data soveriegnty or model
-      transparency, then an open source OCR model such as Tesseract might be
-      preferrable. On the other hand, a commercial API such as AWS Textract
-      brings advantages such as scalability and high OCR quality at a relatively
-      small price per page. Swisstopo's motivation for using AWS Textract and
-      developing an OCR pipeline in this way is documented in more detail on the
-      page
-      [docs/**Motivation.md**](https://github.com/swisstopo/swissgeol-ocr/blob/develop/docs/Motivation.md).
+      The overall pipeline functionality is similar to the OCRmyPDF software, but 
+      with AWS Textract as the underlying OCR model instead of Tesseract. Users who
+      have strong requirements regarding data protection, data soveriegnty or model
+      transparency might perfer an open source OCR model such as Tesseract. On the
+      other hand, a commercial API such as AWS Textract brings advantages such as
+      scalability and high OCR quality at a relatively small price per page. 
+      Swisstopo's motivation for using AWS Textract and developing this OCR pipeline 
+      is documented in more detail on GitHub.
     features:
       - Call the AWS Textract OCR model for one or several PDF files
       - Create a new PDF file where you can select / search for text in any PDF viewer

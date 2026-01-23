@@ -3,12 +3,35 @@ import pymupdf
 
 def is_digitally_born(page: pymupdf.Page) -> bool:
     bboxes = page.get_bboxlog()
+    """Returns whether the page is identified as digitally born.
+    
+    A page is digitally born as soon as it has a bounding boxes of type "fill-text" or "stroke-text"
+    unless all such boxes are covered by a single image.
+    
+    The exception deals with cases such as:
+    - XWQE17I800_bp_19851224_Tiefenbrunnen-2.pdf (deep wells), page 2
+    - MTPE17I800_bp_19770101_Lostorf-3.pdf (deep wells), pages 1-8
+    where text from OCR is actually defined as "fill-text" (instead of "ignore-text") and then covered
+    by the image.
+    
+    Additionally, a page that does not have any image, is always identified as digitally born. 
+    """
+    text_bbox_union = pymupdf.Rect()
+    all_text_covered = False
+    has_image = False
 
-    for boxType, rectangle in bboxes:
+    for boxType, coordinates in bboxes:
+        rectangle = pymupdf.Rect(coordinates)
         # Empty rectangle that should be ignored occurs sometimes, e.g. SwissGeol 44191 page 37.
-        if (boxType == "fill-text" or boxType == "stroke-text") and not pymupdf.Rect(rectangle).is_empty:
-            return True
-    return False
+        if (boxType == "fill-text" or boxType == "stroke-text") and not rectangle.is_empty:
+            all_text_covered = False
+            text_bbox_union = text_bbox_union | rectangle
+        if boxType == "fill-image" or boxType == "fill-imgmask":
+            has_image = True
+            if rectangle.contains(text_bbox_union):
+                all_text_covered = True
+
+    return not (has_image and (text_bbox_union.is_empty or all_text_covered))
 
 
 def x_overlap(rect1: pymupdf.Rect, rect2: pymupdf.Rect) -> float:  # noqa: D103

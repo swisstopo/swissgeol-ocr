@@ -4,20 +4,54 @@ import pymupdf
 from ocr.mask import Mask
 
 
-def clean_old_ocr(page: pymupdf.Page):
+def find_old_ocr_rects(page: pymupdf.Page) -> list[pymupdf.Rect]:
     bboxes = page.get_bboxlog()
+    """Return a list of bounding boxes for existing OCR text.
 
-    counter = 0
-    for boxType, rectangle in bboxes:
+    This includes bounding boxes of type "ignore-text", as well as bounding boxes of type 
+    "fill-text" or "stroke-text" on the condition that they are all covered by a single image.
+
+    If the page appears to be digitally-born, then an empty list is returned (and even bounding
+    boxes of type "ignore-text" are not returned).
+
+    The exception deals with cases such as:
+    - XWQE17I800_bp_19851224_Tiefenbrunnen-2.pdf (deep wells), page 2
+    - MTPE17I800_bp_19770101_Lostorf-3.pdf (deep wells), pages 1-8
+    """
+    ignore_text_rects = []
+    visible_text_rects = []
+    text_bbox_union = pymupdf.Rect()
+    all_text_covered = False
+
+    for boxType, coordinates in bboxes:
+        rectangle = pymupdf.Rect(coordinates)
+        # Empty rectangle that should be ignored occurs sometimes, e.g. SwissGeol 44191 page 37.
+        if (boxType == "fill-text" or boxType == "stroke-text") and not rectangle.is_empty:
+            all_text_covered = False
+            text_bbox_union = text_bbox_union | rectangle
+            visible_text_rects.append(rectangle)
+        if boxType == "fill-image" or boxType == "fill-imgmask":
+            if rectangle.contains(text_bbox_union):
+                all_text_covered = True
         if boxType == "ignore-text":
-            counter += 1
+            ignore_text_rects.append(rectangle)
+
+    if all_text_covered:
+        return visible_text_rects + ignore_text_rects
+    else:
+        return ignore_text_rects
+
+def clean_old_ocr(page: pymupdf.Page):
+    rects = find_old_ocr_rects(page)
+    if rects:
+        for rectangle in rects:
             page.add_redact_annot(rectangle)
-    if counter > 0:
+
         # Applying all redactions at once seems more reliable than applying every redact annotation separately, because
         # when removing part of some text, the remaining text sometimes seems to mysteriously move to a different
         # position on the page.
         page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE)
-        logging.info("  {} boxes removed".format(counter))
+        logging.info("  {} boxes removed".format(len(rects)))
 
 
 def clean_old_ocr_aggressive(page: pymupdf.Page) -> Mask:

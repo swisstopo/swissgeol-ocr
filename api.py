@@ -76,14 +76,14 @@ def collect(
         logging.info(f"Processing of '{payload.file}' has not yet finished.")
         return JSONResponse(status_code=status.HTTP_200_OK, content={
             "has_finished": False,
-            "data": None,
+            "data": None
         })
 
     if result.ok:
         logging.info(f"Processing of '{payload.file}' has been successful.")
         return JSONResponse(status_code=status.HTTP_200_OK, content={
             "has_finished": True,
-            "data": result.value,
+            "data": [entry.model_dump() for entry in result.value.text_per_page],
         })
 
     logging.info(f"Processing of '{payload.file}' has failed.")
@@ -120,7 +120,10 @@ def process(
 
     if settings.skip_processing:
         # fake results from OCR processing and override output_path with input_path to replace file with metadata
-        process_result = ocr.ProcessResult(random.choice([None] + list(range(1, 51))))
+        process_result = ocr.ProcessResult(
+            number_of_pages=random.choice([None] + list(range(1, 51))),
+            text_per_page=[]
+        )
         output_path = input_path
     else:
         process_result = ocr.Processor(
@@ -141,4 +144,4 @@ def process(
     )
 
     shutil.rmtree(tmp_dir)
-    return ()
+    return process_result

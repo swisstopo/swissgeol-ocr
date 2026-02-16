@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pymupdf
 from mypy_boto3_textract import TextractClient
+from pydantic import BaseModel
 from pymupdf import mupdf
 
 from ocr.mask import Mask
@@ -21,9 +22,13 @@ from PIL import Image
 # Avoid "could be decompression bomb DOS attack" error, because this gives false positives on high-resolution scans
 Image.MAX_IMAGE_PIXELS = None
 
-@dataclasses.dataclass
-class ProcessResult:
+class PageText(BaseModel):
+    page_number: int
+    text: str
+
+class ProcessResult(BaseModel):
     number_of_pages: int | None
+    text_per_page: list[PageText]
 
 
 @dataclasses.dataclass
@@ -36,9 +41,9 @@ class Processor:
     confidence_threshold: float
     use_aggressive_strategy: bool
 
-    def process(self):
+    def process(self) -> ProcessResult:
         try:
-            number_of_pages = self.process_pdf(self.input_path)
+            process_result = self.process_pdf(self.input_path)
         except (ValueError, mupdf.FzErrorArgument, mupdf.FzErrorFormat) as e:
             gs_preprocess_path = self.tmp_dir / "gs.pdf"
             logging.info(f"Encountered {e.__class__.__name__}: {e}. Trying Ghostscript preprocessing.")
@@ -53,25 +58,27 @@ class Processor:
                 "-sOutputFile={}".format(gs_preprocess_path),
                 self.input_path,
             ])
-            number_of_pages = self.process_pdf(gs_preprocess_path)
+            process_result = self.process_pdf(gs_preprocess_path)
 
-        return ProcessResult(number_of_pages)
+        return process_result
 
-    def process_pdf(self, in_path: Path) -> int | None:
+    def process_pdf(self, in_path: Path) -> ProcessResult:
         """
         Processes a given PDF
 
         Returns:
-            int|None: number of pages in the output document if possible
+            ProcessResult: the number of pages and the text per page
         """
         doc = pymupdf.open(in_path)
+        text_per_page = []
         in_page_count = doc.page_count
 
         for page_index, _ in enumerate(iter(doc)):
             page_number = page_index + 1
             if not self.debug_page or page_number == self.debug_page:
                 logging.info(f"{os.path.basename(in_path)}, page {page_number}/{in_page_count}")
-                self.process_page(page_index, doc, add_debug_page=bool(self.debug_page))
+                text = self.process_page(page_index, doc, add_debug_page=bool(self.debug_page))
+                text_per_page.append(PageText(page_number=page_number, text=text))
                 pymupdf.TOOLS.store_shrink(100)
 
         if self.debug_page:
@@ -94,14 +101,17 @@ class Processor:
                 )
         doc.close()
 
-        return in_page_count if in_page_count > 0 else None
+        return ProcessResult(
+            number_of_pages=in_page_count if in_page_count > 0 else None,
+            text_per_page=text_per_page
+        )
 
     def process_page(
         self,
         page_index: int,
         doc: pymupdf.Document,
         add_debug_page: bool = False
-    ):
+    ) -> str:
         page_number = page_index + 1
         digitally_born = is_digitally_born(doc[page_index])
 
@@ -126,7 +136,7 @@ class Processor:
                 clean_old_ocr(new_page)
             else:
                 logging.info(" Skipping digitally-born page.")
-                return
+                return new_page.get_text()
         tmp_path_prefix = os.path.join(self.tmp_dir, f"page{page_number}")
         lines_to_draw = process_page(doc, new_page, self.textract_client, tmp_path_prefix,
                                      self.confidence_threshold, mask)
@@ -140,3 +150,4 @@ class Processor:
         # Only call saveIncr() when something actually changed, not for digitally-born pages. Otherwise, files like
         # Asset 39713.pdf cause problems.
         doc.saveIncr()
+        return new_page.get_text()

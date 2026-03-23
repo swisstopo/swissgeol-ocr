@@ -1,11 +1,8 @@
 """Rich schema for Textract API responses."""
 
 from dataclasses import dataclass
-from math import isnan
 
-from numpy.random import geometric
-
-from ocr.textract_api_schema import TDocument, TBlock, TBoundingBox, TPoint, TGeometry, TLine, TWord, TPage
+from ocr.textract.textract_api_schema import TDocument, TBlock, TBoundingBox, TPoint, TGeometry, TLine, TWord, TPage
 
 
 @dataclass

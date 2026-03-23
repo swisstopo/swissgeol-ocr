@@ -10,10 +10,11 @@ from pymupdf import mupdf
 
 from ocr.mask import Mask
 from ocr.applyocr import process_page
-from ocr.clean import clean_old_ocr, clean_old_ocr_aggressive
-from ocr.crop import crop_images, replace_jpx_images
+from ocr.preprocess.clean import clean_old_ocr, clean_old_ocr_aggressive
+from ocr.preprocess.crop import crop_images, replace_jpx_images
 from ocr.draw import draw_ocr_text_page
-from ocr.resize import resize_page
+from ocr.preprocess.preprocess_doc import preprocess
+from ocr.preprocess.resize import resize_page
 from ocr.util import is_digitally_born
 from PIL import Image
 
@@ -66,6 +67,8 @@ class Processor:
         """
         doc = pymupdf.open(in_path)
         in_page_count = doc.page_count
+
+        preprocess(doc)
 
         for page_index, _ in enumerate(iter(doc)):
             page_number = page_index + 1

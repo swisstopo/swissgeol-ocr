@@ -11,8 +11,8 @@ from botocore.exceptions import ClientError
 from mypy_boto3_textract import TextractClient as Textractor
 import textractcaller.t_call as t_call
 
-from ocr.textract_api_schema import TDocument
-from ocr.textract_schema import Document
+from ocr.textract.textract_api_schema import TDocument
+from ocr.textract.textract_schema import Document
 from ocr.readingorder import TextLine
 
 

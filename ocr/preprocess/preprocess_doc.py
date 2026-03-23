@@ -14,7 +14,7 @@ def preprocess(doc: pymupdf.Document):
     #
     # If we detect this, then we force the recreation of the PDF page tree by calling doc.select() with a full
     # selection of all pages in the document.
-    if has_empty_nodes_in_pages_tree(doc):
+    if _has_empty_nodes_in_pages_tree(doc):
         logging.info("Empty nodes in page tree detected. Recreating page tree.")
         # select all pages
         doc.select(range(doc.page_count))
@@ -42,7 +42,7 @@ def _has_empty_pages_nodes(doc: pymupdf.Document, xref: int) -> bool:
     return False
 
 
-def has_empty_nodes_in_pages_tree(doc: pymupdf.Document) -> bool:
+def _has_empty_nodes_in_pages_tree(doc: pymupdf.Document) -> bool:
     catalog = doc.pdf_catalog()  # get xref of the /Catalog
 
     pages_root_xref = int(doc.xref_get_key(catalog, "Pages")[1].split(' ')[0])

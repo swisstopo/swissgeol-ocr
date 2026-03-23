@@ -2,6 +2,9 @@ import io
 
 import pymupdf
 
+import logging
+
+
 def preprocess(doc: pymupdf.Document):
     # Some PDF files have "Pages" nodes with no children in their page tree. (One example is 268124319-bp from the ZH
     # boreholes dataset.) While the PDF specification does not explicitly prohibit this, it can cause problems in some
@@ -12,6 +15,7 @@ def preprocess(doc: pymupdf.Document):
     # If we detect this, then we force the recreation of the PDF page tree by calling doc.select() with a full
     # selection of all pages in the document.
     if has_empty_nodes_in_pages_tree(doc):
+        logging.info("Empty nodes in page tree detected. Recreating page tree.")
         # select all pages
         doc.select(range(doc.page_count))
 

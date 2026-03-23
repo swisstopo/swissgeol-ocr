@@ -1,6 +1,6 @@
 """Unit tests for textract."""
 from ocr.textline import TextLine, TextWord
-from ocr.textract import clip_rects, text_lines_from_response
+from ocr.textract.textract import clip_rects, text_lines_from_response
 from pymupdf import Rect, Matrix
 
 

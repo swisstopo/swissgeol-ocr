@@ -2,7 +2,6 @@ import pymupdf
 
 
 def is_digitally_born(page: pymupdf.Page) -> bool:
-    bboxes = page.get_bboxlog()
     """Returns whether the page is identified as digitally born.
     
     A page is digitally born as soon as it has a bounding boxes of type "fill-text" or "stroke-text"
@@ -16,6 +15,8 @@ def is_digitally_born(page: pymupdf.Page) -> bool:
     
     Additionally, a page that does not have any image, is always identified as digitally born. 
     """
+    bboxes = page.get_bboxlog()
+
     text_bbox_union = pymupdf.Rect()
     all_text_covered = False
     has_image = False

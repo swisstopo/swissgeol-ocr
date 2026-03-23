@@ -3,10 +3,10 @@ import logging
 import pymupdf
 
 from ocr import Mask
-from ocr.crop import downscale_images_x2
+from ocr.preprocess.crop import downscale_images_x2
 from ocr.readingorder import sort_lines
 from ocr.textline import TextLine
-from ocr.textract import combine_text_lines, textract, clip_rects, MAX_DIMENSION_POINTS
+from ocr.textract.textract import combine_text_lines, textract, clip_rects
 from mypy_boto3_textract import TextractClient as Textractor
 from uuid import uuid4
 from pathlib import Path

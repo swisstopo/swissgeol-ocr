@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import pymupdf
-from ocr.textract_schema import Line, Polygon
+from ocr.textract.textract_schema import Line, Polygon
 
 
 @dataclass

@@ -1,0 +1,58 @@
+publiccodeYmlVersion: 0.5.0
+name: swissgeol-ocr
+applicationSuite: swissgeol.ch
+url: https://github.com/swisstopo/swissgeol-ocr
+platforms:
+  - web
+developmentStatus: beta
+softwareType: standalone/backend
+organisation:
+  uri: https://ld.admin.ch/office/IV.1.5a
+  name: Bundesamt für Landestopografie (swisstopo)
+description:
+  en:
+    shortDescription: >-
+      End-to-end OCR pipeline (from raw scanned PDF to searchable PDF) based on
+      the AWS Textract cloud service
+    longDescription: >-
+      An end-to-end OCR pipeline (from raw scanned PDF file to searchable PDF
+      file) based on the AWS Textract cloud service 
+      (https://aws.amazon.com/de/textract/).
+
+      This pipeline was developed by the Swiss Federal Office of Topography
+      swisstopo. At swisstopo, it is used for digitising geological documents 
+      for internal use as well as for publication on the swissgeol.ch platform.
+      In particular, the OCR pipeline has been integrated in the web applications
+      assets.swissgeol.ch and boreholes.swissgeol.ch.
+
+      The pipeline can be run as a Python script (processing either local files
+      or objects in an S3 bucket) or deployed as an API (processing objects in
+      an S3 bucket).
+
+      The overall pipeline functionality is similar to the OCRmyPDF software, but 
+      with AWS Textract as the underlying OCR model instead of Tesseract. Users who
+      have strong requirements regarding data protection, data soveriegnty or model
+      transparency might perfer an open source OCR model such as Tesseract. On the
+      other hand, a commercial API such as AWS Textract brings advantages such as
+      scalability and high OCR quality at a relatively small price per page. 
+      Swisstopo's motivation for using AWS Textract and developing this OCR pipeline 
+      is documented in more detail on GitHub.
+    features:
+      - Call the AWS Textract OCR model for one or several PDF files
+      - Create a new PDF file where you can select / search for text in any PDF viewer
+      - Detect and skip digitally born PDF pages
+      - Remove existing hidden text from previous OCR runs and re-apply OCR
+      - Apply useful preprocessing steps (scaling, cropping, image format conversion)
+      - Cut large pages into smaller sections before they are sent to AWS Textract
+      - Add metadata to an S3 object after processing
+legal:
+  license: AGPL-3.0-only
+maintenance:
+  type: community
+  contacts:
+    - name: Stijn Vermeeren
+      email: stijn.vermeeren@swisstopo.ch
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - en

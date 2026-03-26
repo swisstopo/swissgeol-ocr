@@ -10,16 +10,15 @@ from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 from pathlib import Path
 
+from utils.logging import configure_logging
+configure_logging()
+
 import ocr
 from aws import aws
 from utils import task
 from utils.settings import ApiSettings, api_settings
 
 app = FastAPI()
-
-logging.basicConfig()
-logging.getLogger().setLevel(logging.INFO)
-
 
 class StartPayload(BaseModel):
     file: str = Field(min_length=1)
@@ -103,8 +102,15 @@ def process(
     tmp_dir = Path(settings.tmp_path) / task_id
     os.makedirs(tmp_dir, exist_ok=True)
 
-    input_path = tmp_dir / "input.pdf"
-    output_path = tmp_dir / "output.pdf"
+    filename = os.path.basename(payload.file)
+
+    input_dir = tmp_dir / "input"
+    input_path = input_dir / filename
+    os.makedirs(input_dir, exist_ok=True)
+
+    output_dir = tmp_dir / "output"
+    output_path = output_dir / filename
+    os.makedirs(output_dir, exist_ok=True)
 
     aws.load_file(
         aws_client.s3_input.Bucket(settings.s3_input_bucket),
@@ -122,7 +128,7 @@ def process(
             output_path=output_path,
             debug_page=None,
             tmp_dir=tmp_dir,
-            textractor=aws_client.textract,
+            textract_client=aws_client.textract,
             confidence_threshold=settings.confidence_threshold,
             use_aggressive_strategy=settings.use_aggressive_strategy,
         ).process()

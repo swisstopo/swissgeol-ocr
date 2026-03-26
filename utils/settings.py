@@ -1,3 +1,4 @@
+import logging
 import os
 from functools import lru_cache
 from typing import Literal
@@ -47,7 +48,7 @@ class ScriptSettings(SharedSettings):
     output_s3_prefix: str | None = None
 
 
-print(f"Loading env variables from '.env'.")
+logging.info(f"Loading env variables from '.env'.")
 load_dotenv()
 if 'OCR_PROFILE' in os.environ:
     env_file = f".env.{os.environ['OCR_PROFILE']}"

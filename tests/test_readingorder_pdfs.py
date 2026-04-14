@@ -161,6 +161,58 @@ def test_sort_lines_with_sidenotes(single_column_with_sidenotes_doc):
 
 
 @pytest.fixture
+def single_column_with_interruption_doc(pdf_dir):
+    doc = pymupdf.Document()
+    page = doc.new_page()
+
+    # Bounding boxes for text
+    main_text_rect = pymupdf.Rect(170, 0, 370, 400)  # Main text column
+    interruption_rect = pymupdf.Rect(50, 150, 150, 250)
+
+    # Main text
+    page.insert_textbox(main_text_rect, (
+        "Die Landesgeologie von swisstopo ist das Kompetenzzentrum des Bundes für die Erhebung, Analyse, Lagerung "
+        "und Bereitstellung geologischer Daten von nationalem Interesse. Sie erarbeitet geologische Grundlagendaten, "
+        "2D- und 3D-Modelle und leitet das unterirdische Forschungslabor Mont Terri. Das Mont Terri Projekt "
+        "ist ein internationales Forschungsprojekt zur hydrogeologischen, geochemischen und "
+        "geotechnischen Charakterisierung einer Tonformation (Opalinus-Ton)."
+    ))
+
+    # Side notes
+    page.insert_textbox(interruption_rect, "XX")
+
+    if pdf_dir:
+        doc.save(pdf_dir / "single_column_with_interruption.pdf")
+    return doc
+
+
+def test_sort_lines_with_interruption(single_column_with_interruption_doc):
+    text = single_column_with_interruption_doc[0].get_text("dict")
+
+    lines = [
+        _create_line(pymupdf.Rect(span['bbox']), span['text'])
+        for block in text['blocks']
+        for line in block['lines']
+        for span in line['spans']
+    ]
+
+    sorted_blocks = sort_lines(lines)
+    extracted_text = " ".join([line.text for block in sorted_blocks for line in block.lines])
+
+    # Expected reading order: Interruption before main text
+    expected_text = (
+        "XX "
+        "Die Landesgeologie von swisstopo ist das Kompetenzzentrum des Bundes für die Erhebung, Analyse, Lagerung "
+        "und Bereitstellung geologischer Daten von nationalem Interesse. Sie erarbeitet geologische Grundlagendaten, "
+        "2D- und 3D-Modelle und leitet das unterirdische Forschungslabor Mont Terri. Das Mont Terri Projekt "
+        "ist ein internationales Forschungsprojekt zur hydrogeologischen, geochemischen und "
+        "geotechnischen Charakterisierung einer Tonformation (Opalinus-Ton)."
+    )
+
+    assert extracted_text == expected_text, "Extracted text does not match expected reading order."
+
+
+@pytest.fixture
 def table_with_gaps_doc(pdf_dir):
     # Test case inspired by Asset 7138.pdf page 52.
     doc = pymupdf.Document()
@@ -413,11 +465,11 @@ def test_sort_lines_with_depths_and_paragraph(interval_column_paragraph_doc):
 
     expected_text = (
         "10-20m "
+        "20-30m "
+        "1 "  # even better would be to have this page number read first, but this is ok for now
         "brauner, siltigen bis stark siltigen Feinsand "
         "mit wechselndem Grobsand-Kiesanteil (vereinzelt bis reichlich) "
         "brauner, siltigen bis stark siltigen Feinsand mit wechselndem Grobsand-Kiesanteil "
-        "20-30m "
-        "1 "  # even better would be to have this page number read first, but this is ok for now
         "brauner, tonigen Kies mit viel Sand "
         "Die tonig-siltigen Schwemmlehme haben eine relativ niedrige "
         "Scherfestigkeit und eine hohe Setzungsempfindlichkeit. "

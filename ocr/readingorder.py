@@ -175,50 +175,82 @@ def starting_line_for_next_block(remaining_lines: set[TextLineReadingOrder]) -> 
     return selected_line
 
 
+def create_block_from_line(
+        start_line: TextLineReadingOrder,
+        all_lines: set[TextLineReadingOrder],
+        remaining_lines: set[TextLineReadingOrder],
+        interrupt_lines: set[TextLineReadingOrder]
+) -> tuple[ReadingOrderBlock | None, set[TextLineReadingOrder]]:
+    current_block = [start_line]
+    current_line = start_line
+    remaining_lines_input = remaining_lines.copy()
+
+    while remaining_lines:
+        next_line = None
+
+        # add text lines that seem to continue the current column, even if they are further down (but not futher
+        # down than the current height of the column)
+        column = ReadingOrderColumn.current_column(current_line, current_block[:-1], all_lines)
+        in_column_lines = {line for line in remaining_lines if column.can_be_extended_by(line.geometry)}
+        if len(in_column_lines):
+            highest_following = min(in_column_lines, key=lambda line: line.geometry.rect.y0)
+            candidates = {
+                line for line in in_column_lines
+                if line.geometry.needs_to_come_before(highest_following.geometry)
+            }
+            candidates.add(highest_following)
+            next_line = min(candidates, key=lambda line: line.geometry.rect.x0)
+
+        if not next_line:
+            # lines that are directly below the last line, either left-aligned, right-aligned or centered
+            following = {line for line in remaining_lines if line.geometry.distance_after(current_line.geometry) < 20}
+            if len(following):
+                next_line = min(following, key=lambda line: line.geometry.rect.y0)
+
+        if not next_line:
+            break
+
+        if next_line in interrupt_lines:
+            break
+
+        if any(line.geometry.needs_to_come_before(next_line.geometry) for line in remaining_lines):
+            interrupting_lines = {line for line in remaining_lines if line.geometry.needs_to_come_before(next_line.geometry)}
+            new_start_line = starting_line_for_next_block(interrupting_lines)
+            if new_start_line in interrupt_lines:
+                break
+            # Start again with the line that interrupted the current column. Break once we hit a line that was already added to the current column.
+            remaining_lines_input.remove(new_start_line)
+            remaining_lines_input.add(start_line)
+            return create_block_from_line(new_start_line, all_lines, remaining_lines_input, interrupt_lines=set(current_block))
+
+        current_line = next_line
+        remaining_lines.remove(current_line)
+        current_block.append(current_line)
+
+    return ReadingOrderBlock([line.line for line in current_block]), remaining_lines
+
+
+def create_block(
+        all_lines: set[TextLineReadingOrder],
+        remaining_lines: set[TextLineReadingOrder]
+) -> tuple[ReadingOrderBlock | None, set[TextLineReadingOrder]]:
+    current_line = starting_line_for_next_block(remaining_lines)
+    if not current_line:
+        return None, set()
+
+    remaining_lines.remove(current_line)
+    return create_block_from_line(current_line, all_lines, remaining_lines, interrupt_lines=set())
+
 def sort_lines(text_lines: list[TextLine]) -> list[ReadingOrderBlock]:
     all_lines = {TextLineReadingOrder(line) for line in text_lines}
     remaining_lines = all_lines.copy()
     blocks = []
 
     while remaining_lines:
-        current_line = starting_line_for_next_block(remaining_lines)
-        remaining_lines.remove(current_line)
-        current_block = [current_line]
+        block, remaining_lines = create_block(all_lines, remaining_lines)
+        if block is None:
+            break
+        blocks.append(block)
 
-        while remaining_lines:
-            next_line = None
-
-            # add text lines that seem to continue the current column, even if they are further down (but not futher
-            # down than the current height of the column)
-            column = ReadingOrderColumn.current_column(current_line, current_block[:-1], all_lines)
-            in_column_lines = {line for line in remaining_lines if column.can_be_extended_by(line.geometry)}
-            if len(in_column_lines):
-                highest_following = min(in_column_lines, key=lambda line: line.geometry.rect.y0)
-                candidates = {
-                    line for line in in_column_lines
-                    if line.geometry.needs_to_come_before(highest_following.geometry)
-                }
-                candidates.add(highest_following)
-                next_line = min(candidates, key=lambda line: line.geometry.rect.x0)
-
-            if not next_line:
-                # lines that are directly below the last line, either left-aligned, right-aligned or centered
-                following = {line for line in remaining_lines if line.geometry.distance_after(current_line.geometry) < 20}
-                if len(following):
-                    next_line = min(following, key=lambda line: line.geometry.rect.y0)
-
-            if not next_line:
-                break
-
-            current_line = next_line
-            remaining_lines.remove(current_line)
-
-            if any(line.geometry.needs_to_come_before(current_line.geometry) for line in remaining_lines):
-                remaining_lines.add(current_line)
-                break
-
-            current_block.append(current_line)
-
-        blocks.append(ReadingOrderBlock([line.line for line in current_block]))
     return blocks
 

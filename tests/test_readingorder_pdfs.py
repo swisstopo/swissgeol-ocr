@@ -14,6 +14,20 @@ from ocr.readingorder import sort_lines, TextLine
 def _create_line(rect: pymupdf.Rect, text: str) -> TextLine:
     return TextLine(rect=rect, text=text, derotated_rect=pymupdf.Rect(), orientation=0, confidence=1, words=[])
 
+
+def _test_reading_order(doc: pymupdf.Document, expected_text: str):
+    text = doc[0].get_text("dict")
+    lines = [
+        _create_line(pymupdf.Rect(span['bbox']), span['text'])
+        for block in text['blocks']
+        for line in block['lines']
+        for span in line['spans']
+    ]
+
+    text = " ".join([line.text for block in sort_lines(lines) for line in block.lines])
+    assert text == expected_text, "Extracted text does not match expected reading order."
+
+
 @pytest.fixture
 def two_columns_doc(pdf_dir):
     # Test case inspired by Asset 11806.pdf page 2.
@@ -45,21 +59,13 @@ def two_columns_doc(pdf_dir):
     return doc
 
 def test_sort_lines(two_columns_doc):
-    text = two_columns_doc[0].get_text("dict")
-    lines = [
-        _create_line(pymupdf.Rect(span['bbox']), span['text'])
-        for block in text['blocks']
-        for line in block['lines']
-        for span in line['spans']
-    ]
-
-    text = " ".join([line.text for block in sort_lines(lines) for line in block.lines])
-    assert text == (
+    _test_reading_order(two_columns_doc, (
         "Das Bundesamt für Landestopografie swisstopo ist das Geoinformationszentrum der Schweiz. "
         "Die Landesgeologie von swisstopo ist das Kompetenzzentrum des Bundes für die Erhebung, Analyse, Lagerung "
         "und Bereitstellung geologischer Daten von nationalem Interesse. Sie erarbeitet geologische Grundlagendaten, "
         "2D- und 3D-Modelle und leitet das unterirdische Forschungslabor Mont Terri in St-Ursanne. 1"
-    )
+    ))
+
 
 @pytest.fixture
 def doc_with_header(pdf_dir):
@@ -85,22 +91,10 @@ def doc_with_header(pdf_dir):
 
 
 def test_sort_lines_with_headers(doc_with_header):
-    text = doc_with_header[0].get_text("dict")
-    lines = [
-        _create_line(pymupdf.Rect(span['bbox']), span['text'])
-        for block in text['blocks']
-        for line in block['lines']
-        for span in line['spans']
-    ]
-
-    sorted_blocks = sort_lines(lines)
-    extracted_text = " ".join([line.text for block in sorted_blocks for line in block.lines])
-
-    expected_text = (
+    _test_reading_order(doc_with_header, (
         "Header Die Landesgeologie von swisstopo ist das Kompetenzzentrum des Bundes für die Erhebung, Analyse, "
         "Lagerung und Bereitstellung geologischer Daten von nationalem Interesse."
-    )
-    assert extracted_text == expected_text, "Extracted text does not match expected reading order."
+    ))
 
 @pytest.fixture
 def single_column_with_sidenotes_doc(pdf_dir):
@@ -134,20 +128,7 @@ def single_column_with_sidenotes_doc(pdf_dir):
 
 
 def test_sort_lines_with_sidenotes(single_column_with_sidenotes_doc):
-    text = single_column_with_sidenotes_doc[0].get_text("dict")
-
-    lines = [
-        _create_line(pymupdf.Rect(span['bbox']), span['text'])
-        for block in text['blocks']
-        for line in block['lines']
-        for span in line['spans']
-    ]
-
-    sorted_blocks = sort_lines(lines)
-    extracted_text = " ".join([line.text for block in sorted_blocks for line in block.lines])
-
-    # Expected reading order: Main text should be read first, then side notes
-    expected_text = (
+    _test_reading_order(single_column_with_sidenotes_doc, (
         "Die Landesgeologie von swisstopo ist das Kompetenzzentrum des Bundes für die Erhebung, Analyse, Lagerung "
         "und Bereitstellung geologischer Daten von nationalem Interesse. Sie erarbeitet geologische Grundlagendaten, "
         "2D- und 3D-Modelle und leitet das unterirdische Forschungslabor Mont Terri. Das Mont Terri Projekt "
@@ -155,9 +136,7 @@ def test_sort_lines_with_sidenotes(single_column_with_sidenotes_doc):
         "geotechnischen Charakterisierung einer Tonformation (Opalinus-Ton). "
         "Hinweis: Swisstopo ist das Bundesamt für Landestopografie. "
         "Hinweis 2: Das Mont Terri Forschungslabor is in St-Ursanne."
-    )
-
-    assert extracted_text == expected_text, "Extracted text does not match expected reading order."
+    ))
 
 
 @pytest.fixture
@@ -187,29 +166,14 @@ def single_column_with_interruption_doc(pdf_dir):
 
 
 def test_sort_lines_with_interruption(single_column_with_interruption_doc):
-    text = single_column_with_interruption_doc[0].get_text("dict")
-
-    lines = [
-        _create_line(pymupdf.Rect(span['bbox']), span['text'])
-        for block in text['blocks']
-        for line in block['lines']
-        for span in line['spans']
-    ]
-
-    sorted_blocks = sort_lines(lines)
-    extracted_text = " ".join([line.text for block in sorted_blocks for line in block.lines])
-
-    # Expected reading order: Interruption before main text
-    expected_text = (
+    _test_reading_order(single_column_with_interruption_doc, (
         "XX "
         "Die Landesgeologie von swisstopo ist das Kompetenzzentrum des Bundes für die Erhebung, Analyse, Lagerung "
         "und Bereitstellung geologischer Daten von nationalem Interesse. Sie erarbeitet geologische Grundlagendaten, "
         "2D- und 3D-Modelle und leitet das unterirdische Forschungslabor Mont Terri. Das Mont Terri Projekt "
         "ist ein internationales Forschungsprojekt zur hydrogeologischen, geochemischen und "
         "geotechnischen Charakterisierung einer Tonformation (Opalinus-Ton)."
-    )
-
-    assert extracted_text == expected_text, "Extracted text does not match expected reading order."
+    ))
 
 
 @pytest.fixture
@@ -236,24 +200,10 @@ def table_with_gaps_doc(pdf_dir):
 
 
 def test_table_with_gaps(table_with_gaps_doc):
-    text = table_with_gaps_doc[0].get_text("dict")
-
-    lines = [
-        _create_line(pymupdf.Rect(span['bbox']), span['text'])
-        for block in text['blocks']
-        for line in block['lines']
-        for span in line['spans']
-    ]
-
-    sorted_blocks = sort_lines(lines)
-    extracted_text = " ".join([line.text for block in sorted_blocks for line in block.lines])
-
-    # Expected reading order: Main text should be read first, then side notes
-    expected_text = (
+    _test_reading_order(
+        table_with_gaps_doc,
         "1 2 3 4 5 6 7 8 9 10 Hinweis: Swisstopo ist das Bundesamt für Landestopografie."
     )
-
-    assert extracted_text == expected_text, "Extracted text does not match expected reading order."
 
 
 @pytest.fixture
@@ -305,19 +255,7 @@ def overlap_doc(pdf_dir):
 
 
 def test_overlap(overlap_doc):
-    text = overlap_doc[0].get_text("dict")
-
-    lines = [
-        _create_line(pymupdf.Rect(span['bbox']), span['text'])
-        for block in text['blocks']
-        for line in block['lines']
-        for span in line['spans']
-    ]
-
-    sorted_blocks = sort_lines(lines)
-    extracted_text = " ".join([line.text for block in sorted_blocks for line in block.lines])
-    expected_text = "One Two Three"
-    assert extracted_text == expected_text, "Extracted text does not match expected reading order."
+    _test_reading_order(overlap_doc, "One Two Three")
 
 
 @pytest.fixture
@@ -341,19 +279,10 @@ def split_text_doc(pdf_dir):
 
 
 def test_split_text(split_text_doc):
-    text = split_text_doc[0].get_text("dict")
-
-    lines = [
-        _create_line(pymupdf.Rect(span['bbox']), span['text'])
-        for block in text['blocks']
-        for line in block['lines']
-        for span in line['spans']
-    ]
-
-    sorted_blocks = sort_lines(lines)
-    extracted_text = " ".join([line.text for block in sorted_blocks for line in block.lines])
-    expected_text = "This is the first line This is the second line This is line three And this is line four This is the fifth line"
-    assert extracted_text == expected_text, "Extracted text does not match expected reading order."
+    _test_reading_order(
+        split_text_doc,
+        "This is the first line This is the second line This is line three And this is line four This is the fifth line"
+    )
 
 
 @pytest.fixture
@@ -375,19 +304,11 @@ def multiple_diagonal_lines_doc(pdf_dir):
 
 
 def test_multiple_diagonal_lines(multiple_diagonal_lines_doc):
-    text = multiple_diagonal_lines_doc[0].get_text("dict")
+    _test_reading_order(
+        multiple_diagonal_lines_doc,
+        "Short This is a medium line This is a long long long long long line"
+    )
 
-    lines = [
-        _create_line(pymupdf.Rect(span['bbox']), span['text'])
-        for block in text['blocks']
-        for line in block['lines']
-        for span in line['spans']
-    ]
-
-    sorted_blocks = sort_lines(lines)
-    extracted_text = " ".join([line.text for block in sorted_blocks for line in block.lines])
-    expected_text = "Short This is a medium line This is a long long long long long line"
-    assert extracted_text == expected_text, "Extracted text does not match expected reading order."
 
 def draw(page: pymupdf.Page, text: str, rect: pymupdf.Rect):
     page.insert_textbox(rect, text)
@@ -450,20 +371,7 @@ def interval_column_paragraph_doc(pdf_dir):
 
 
 def test_sort_lines_with_depths_and_paragraph(interval_column_paragraph_doc):
-    text = interval_column_paragraph_doc[0].get_text("dict")
-
-    lines = [
-        _create_line(pymupdf.Rect(span['bbox']), span['text'])
-        for block in text['blocks']
-        for line in block['lines']
-        for span in line['spans']
-    ]
-
-    # Sort the lines using reading order
-    sorted_blocks = sort_lines(lines)
-    extracted_text = " ".join([line.text for block in sorted_blocks for line in block.lines])
-
-    expected_text = (
+    _test_reading_order(interval_column_paragraph_doc, (
         "10-20m "
         "20-30m "
         "1 "  # even better would be to have this page number read first, but this is ok for now
@@ -476,7 +384,5 @@ def test_sort_lines_with_depths_and_paragraph(interval_column_paragraph_doc):
         "Die sandigen Schwemmablagerungen haben wesentlich bessere Eigenschaften. "
         "30-40m 40-50m "
         "Humus Sauberer Kies mit viel Sand"
-    )
-
-    assert extracted_text == expected_text, "Extracted text does not match expected reading order."
+    ))
 

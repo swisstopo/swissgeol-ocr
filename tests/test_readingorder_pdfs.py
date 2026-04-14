@@ -128,6 +128,7 @@ def single_column_with_sidenotes_doc(pdf_dir):
 
 
 def test_sort_lines_with_sidenotes(single_column_with_sidenotes_doc):
+    # Expected reading order: Main text should be read first, then side notes
     _test_reading_order(single_column_with_sidenotes_doc, (
         "Die Landesgeologie von swisstopo ist das Kompetenzzentrum des Bundes für die Erhebung, Analyse, Lagerung "
         "und Bereitstellung geologischer Daten von nationalem Interesse. Sie erarbeitet geologische Grundlagendaten, "
@@ -166,6 +167,7 @@ def single_column_with_interruption_doc(pdf_dir):
 
 
 def test_sort_lines_with_interruption(single_column_with_interruption_doc):
+    # Expected reading order: Interruption before main text
     _test_reading_order(single_column_with_interruption_doc, (
         "XX "
         "Die Landesgeologie von swisstopo ist das Kompetenzzentrum des Bundes für die Erhebung, Analyse, Lagerung "

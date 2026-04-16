@@ -181,6 +181,7 @@ class CreateBlockState:
     current_block: list[TextLineReadingOrder]
     remaining_lines: set[TextLineReadingOrder]
     all_lines: set[TextLineReadingOrder]
+    fallback_remaining_lines: set[TextLineReadingOrder]
 
     def current_column(self):
         return ReadingOrderColumn.current_column(self.current_line, self.current_block[:-1], self.all_lines)
@@ -190,27 +191,28 @@ class CreateBlockState:
             next_line,
             current_block=self.current_block + [next_line],
             remaining_lines=self.remaining_lines.difference({next_line}),
-            all_lines=self.all_lines
+            all_lines=self.all_lines,
+            fallback_remaining_lines=self.fallback_remaining_lines
         )
 
     @classmethod
     def start(cls, start_line: TextLineReadingOrder, available_lines: set[TextLineReadingOrder], all_lines: set[TextLineReadingOrder]) -> "CreateBlockState":
-        if start_line in available_lines:
-            available_lines.remove(start_line)
+        remaining_lines = available_lines.copy()
+        if start_line in remaining_lines:
+            remaining_lines.remove(start_line)
+
         return CreateBlockState(
             current_line=start_line,
             current_block=[start_line],
-            remaining_lines=available_lines,
-            all_lines=all_lines
+            remaining_lines=remaining_lines,
+            all_lines=all_lines,
+            fallback_remaining_lines=available_lines
         )
 
 def create_block_from_line(
         state: CreateBlockState,
         interrupt_lines: set[TextLineReadingOrder]
 ) -> tuple[ReadingOrderBlock | None, set[TextLineReadingOrder]]:
-    fallback_remaining_lines = state.remaining_lines.copy()
-    fallback_remaining_lines.add(state.current_line)
-
     while state.remaining_lines:
         next_line = None
 
@@ -246,7 +248,7 @@ def create_block_from_line(
                 if new_start_line in interrupt_lines:
                     break
                 # Start again with the line that interrupted the current column. Break once we hit a line that was already added to the current column.
-                new_state = CreateBlockState.start(new_start_line, fallback_remaining_lines, state.all_lines)
+                new_state = CreateBlockState.start(new_start_line, state.fallback_remaining_lines, state.all_lines)
                 return create_block_from_line(new_state, interrupt_lines=interrupt_lines.union(state.current_block))
 
         state = state.add_line(next_line)

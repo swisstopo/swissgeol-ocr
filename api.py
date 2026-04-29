@@ -34,7 +34,7 @@ def start(
         settings: Annotated[ApiSettings, Depends(api_settings)],
         background_tasks: BackgroundTasks,
 ):
-    if not payload.file.endswith('.pdf'):
+    if not payload.file.lower().endswith('.pdf'):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": "input must be a PDF file"}

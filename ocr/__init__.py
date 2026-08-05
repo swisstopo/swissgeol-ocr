@@ -2,6 +2,7 @@ import dataclasses
 import logging
 import os
 import subprocess
+from collections import Counter
 from pathlib import Path
 
 import pymupdf
@@ -14,7 +15,7 @@ from ocr.preprocess.clean import clean_old_ocr, clean_old_ocr_aggressive
 from ocr.preprocess.crop import crop_images, replace_jpx_images
 from ocr.draw import draw_ocr_text_page
 from ocr.preprocess.preprocess_doc import preprocess
-from ocr.preprocess.resize import resize_page
+from ocr.preprocess.resize import resize_page, replace_page
 from ocr.util import is_digitally_born
 from PIL import Image
 
@@ -136,6 +137,17 @@ class Processor:
 
         text_layer_path = os.path.join(self.tmp_dir, f"page{page_number}.pdf")
         draw_ocr_text_page(new_page, text_layer_path, lines_to_draw)
+
+        # if almost all text lines have a non-trivial orientation that is a multiple of 90, then rotate the pages accordingly
+        if len(lines_to_draw) > 20:
+            counter = Counter(line.orientation for line in lines_to_draw)
+            most_common_orientation, max_count = counter.most_common(1)[0]
+            if most_common_orientation != 0 and max_count >= 0.9 * len(lines_to_draw):
+                closest_multiple_of_90_deg = round(most_common_orientation / 90) * 90
+                if most_common_orientation == closest_multiple_of_90_deg:
+                    logging.info(f"  Rotating page by {closest_multiple_of_90_deg} degrees.")
+                    new_page = replace_page(doc, new_page.number, rotate=closest_multiple_of_90_deg)
+
         if add_debug_page:
             debug_page = doc.new_page(new_page.number + 1, new_page.rect.width, new_page.rect.height)
             draw_ocr_text_page(debug_page, text_layer_path, lines_to_draw, visible=True)

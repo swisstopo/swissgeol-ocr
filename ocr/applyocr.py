@@ -20,7 +20,7 @@ def process_page(
         tmp_path_prefix: str,
         confidence_threshold: float,
         mask: Mask | None = None
-):
+) -> list[TextLine]:
     if mask is None:
         mask = Mask(page)
 
@@ -87,7 +87,7 @@ class OCR:
     def tmp_file_path(tmp_path_prefix, extension: str) -> Path:
         return Path("{}_{}.{}".format(tmp_path_prefix, uuid4(), extension))
 
-    def apply_ocr(self):
+    def apply_ocr(self) -> list[TextLine]:
         """Apply OCR."""
         text_lines = self._ocr_text_lines()
 

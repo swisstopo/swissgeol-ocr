@@ -1,5 +1,3 @@
-import io
-
 import pymupdf
 
 import logging

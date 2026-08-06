@@ -50,7 +50,7 @@ def clean_old_ocr(page: pymupdf.Page):
         # Applying all redactions at once seems more reliable than applying every redact annotation separately, because
         # when removing part of some text, the remaining text sometimes seems to mysteriously move to a different
         # position on the page.
-        page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE)
+        page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE, graphics=pymupdf.PDF_REDACT_LINE_ART_NONE)
         logging.info("  {} boxes removed".format(len(rects)))
 
 

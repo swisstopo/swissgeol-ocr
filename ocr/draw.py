@@ -2,11 +2,14 @@ import pymupdf
 import os
 
 from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.pdfmetrics import registerFontFamily
 from reportlab.pdfgen import canvas
 from reportlab.pdfgen.textobject import PDFTextObject
+from reportlab.pdfbase.ttfonts import TTFont
 
 from ocr.textline import TextWord, TextLine
 
+pdfmetrics.registerFont(TTFont('DejaVuSans', 'DejaVuSans.ttf'))
 
 def draw_ocr_word(
         text: PDFTextObject,
@@ -41,7 +44,6 @@ def draw_ocr_word(
         # Put everything nicely on one line, even when the individual words are detected with a slightly
         # different vertical position.
         text_y = line_text_y
-
     text_width = pdfmetrics.stringWidth(wordText, font_name, font_size)
     text.setHorizScale(100 * width / text_width)
     text.setTextOrigin(word.derotated_rect.x0, text_y)
@@ -66,7 +68,7 @@ def draw_ocr_text_page(
     text attributed such as horizontal spacing, compared to PyMuPDF), and afterwards overlayed onto the original PDF
     page using the PyMuPDF show_pdf_page method.
     """
-    font_name = "Helvetica"
+    font_name = "DejaVuSans"
 
     width = page.rect.width
     height = page.rect.height

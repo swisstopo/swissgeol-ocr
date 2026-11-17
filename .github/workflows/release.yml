@@ -33,31 +33,37 @@ jobs:
     name: "determine version"
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.find_version.outputs.result }}
+      version: ${{ steps.find_versions.outputs.version }}
+      previous_version: ${{ steps.find_versions.outputs.previous_version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Get tags of base commit
-        id: get_base_tags
-        run: |
-          git fetch --tags
-          BASE_COMMIT=$(git rev-list -n 1 release-candidate)
-          BASE_TAGS=$(printf "%s," $(git tag --contains $BASE_COMMIT))
-          BASE_TAGS=${BASE_TAGS%,}
-          echo "base_tags=$BASE_TAGS" >> "$GITHUB_OUTPUT"
-      - name: Find next version
-        id: find_version
-        uses: actions/github-script@v7
-        env:
-          BASE_TAGS: ${{ steps.get_base_tags.outputs.base_tags }}
         with:
-          result-encoding: string
+          fetch-depth: 0
+      - name: Find versions
+        id: find_versions
+        uses: actions/github-script@v7
+        with:
           script: |
-            const { findMostRecentVersion, makeVersionTag } = require('./.github/scripts/find-version.js');
-            const tags = process.env.BASE_TAGS.split(',');
-            const version = findMostRecentVersion(tags);
+            const { findMostRecentVersion, findPreviousVersion, makeVersionTag } = require('./.github/scripts/find-version.js');
+            const { execFileSync } = require('node:child_process');
+            
+            // Get all tags reachable from release-candidate
+            const allTags = execFileSync('git', ['tag', '--merged', 'release-candidate'], { encoding: 'utf8' })
+              .trim().split('\n');
+            
+            // Find next version from all reachable tags
+            const version = findMostRecentVersion(allTags);
             version.preRelease = null;
-            return makeVersionTag(version);
+            const nextVersion = makeVersionTag(version);
+            
+            // Find previous version
+            const previousVersion = findPreviousVersion(allTags, nextVersion);
+            const previousVersionTag = previousVersion ? makeVersionTag(previousVersion) : '';
+            
+            // Set outputs
+            core.setOutput('version', nextVersion);
+            core.setOutput('previous_version', previousVersionTag);
 
   build_and_push_api:
     name: "build and push api"
@@ -120,12 +126,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: "${{ needs.determine_version.outputs.version }}"
           name: "swissgeol-ocr-api v${{ needs.determine_version.outputs.version }}"
           generate_release_notes: true
+          previous_tag: "${{ needs.determine_version.outputs.previous_version }}"
           make_latest: true
 
   cleanup:

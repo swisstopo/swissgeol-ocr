@@ -43,6 +43,16 @@ const findMostRecentVersion = (tags) => {
   return versions[0];
 };
 
+const findPreviousVersion = (tags, currentVersion) => {
+  const versions = findAllVersions(tags);
+  for (const version of versions) {
+    if (version.preRelease == null && makeVersionTag(version) !== currentVersion) {
+      return version;
+    }
+  }
+  return null;
+};
+
 const findOutdatedVersions = (tags, recentTag) => {
   const recentVersion = parseVersion(recentTag);
   if (recentVersion == null) {
@@ -110,6 +120,8 @@ const makeVersionTag = ({ major, minor, patch, preRelease }) => {
 module.exports = {
   findNextVersion,
   findMostRecentVersion,
+  findPreviousVersion,
+  findAllVersions,
   findOutdatedVersions,
   makeVersionTag,
 };

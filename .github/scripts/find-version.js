@@ -121,7 +121,6 @@ module.exports = {
   findNextVersion,
   findMostRecentVersion,
   findPreviousVersion,
-  findAllVersions,
   findOutdatedVersions,
   makeVersionTag,
 };

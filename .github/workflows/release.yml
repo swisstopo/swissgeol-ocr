@@ -136,8 +136,6 @@ jobs:
           generate_release_notes: true
           previous_tag: "${{ needs.determine_version.outputs.previous_version }}"
           make_latest: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   cleanup:
     name: "cleanup"

@@ -1,12 +1,4 @@
 import logging
-import sys
-
-otel_paths = [p for p in sys.path if "otel-auto-instrumentation-python" in p]
-if otel_paths:
-  sys.path = [p for p in sys.path if "otel-auto-instrumentation-python" not in p] + otel_paths
-
-logging.error(f"API running with the following sys.path: {sys.path}")
-
 import os
 import shutil
 import uuid
@@ -27,6 +19,7 @@ from utils import task
 from utils.settings import ApiSettings, api_settings
 
 app = FastAPI()
+
 class StartPayload(BaseModel):
     file: str = Field(min_length=1)
 

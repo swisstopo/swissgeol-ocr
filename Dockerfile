@@ -1,10 +1,16 @@
-FROM python:3.14-alpine3.23
+FROM python:3.14-slim
 
-RUN apk add --quiet --no-cache ghostscript build-base
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ghostscript gcc \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY . .
 
-RUN pip install --upgrade pip --quiet
-RUN pip install --root-user-action=ignore -r requirements.txt --quiet
+RUN pip install --root-user-action=ignore --no-cache-dir --upgrade pip \
+ && pip install --root-user-action=ignore --no-cache-dir -r requirements.txt
+
+RUN useradd --create-home appuser && chown -R appuser /app
+USER appuser
+
 ENTRYPOINT ["fastapi", "run", "api.py"]

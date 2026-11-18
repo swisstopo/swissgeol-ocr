@@ -6,7 +6,7 @@ python-dotenv
 python-multipart
 pydantic
 pydantic-settings
-fastapi[standard] <= 0.141.0
+fastapi[standard]
 boto3
 boto3-stubs[essential,s3,textract]
 pytest

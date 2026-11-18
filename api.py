@@ -18,6 +18,14 @@ from aws import aws
 from utils import task
 from utils.settings import ApiSettings, api_settings
 
+import sys
+
+# Workaround for outdated amazon-cloudwatch-observability on our cluster?
+otel_path = "/otel-auto-instrumentation-python"
+if otel_path in sys.path:
+    sys.path.remove(otel_path)
+    sys.path.append(otel_path)
+
 app = FastAPI()
 
 class StartPayload(BaseModel):

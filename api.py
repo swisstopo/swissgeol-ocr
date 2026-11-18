@@ -6,15 +6,7 @@ import random
 from typing import Annotated
 import sys
 
-# Workaround for outdated amazon-cloudwatch-observability on our cluster?
-otel_path = "/otel-auto-instrumentation-python"
-if otel_path in sys.path:
-    sys.path.remove(otel_path)
-    sys.path.append(otel_path)
-print(sys.path)
-sys.modules.pop("typing_extensions", None)
-
-from fastapi import FastAPI, Depends, status, HTTPException, BackgroundTasks, Response
+from fastapi import FastAPI, Depends, logger, status, HTTPException, BackgroundTasks, Response
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 from pathlib import Path
@@ -27,9 +19,8 @@ from aws import aws
 from utils import task
 from utils.settings import ApiSettings, api_settings
 
-
+logging.warning(f"API running with the following sys.path: {sys.path}")
 app = FastAPI()
-
 class StartPayload(BaseModel):
     file: str = Field(min_length=1)
 

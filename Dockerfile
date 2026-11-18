@@ -4,13 +4,19 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends ghostscript gcc \
  && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-COPY . .
-
-RUN pip install --root-user-action=ignore --no-cache-dir --upgrade pip \
- && pip install --root-user-action=ignore --no-cache-dir -r requirements.txt
-
-RUN useradd --create-home appuser && chown -R appuser /app
+ RUN useradd --create-home appuser \
+  && mkdir -p /app \
+  && chown appuser /app
 USER appuser
+WORKDIR /app
+
+RUN python -m venv /home/appuser/venv
+ENV PATH="/home/appuser/venv/bin:$PATH"
+
+COPY --chown=appuser requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt
+
+COPY --chown=appuser . .
 
 ENTRYPOINT ["fastapi", "run", "api.py"]

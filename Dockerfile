@@ -19,5 +19,5 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY --chown=appuser . .
 
-# disable the injected instrumentation abd strip all OTel env
+# disable the injected instrumentation and strip all OTel env
 ENTRYPOINT ["sh", "-c", "unset PYTHONPATH; unset $(env | grep '^OTEL_' | cut -d= -f1) 2>/dev/null; exec fastapi run api.py"]

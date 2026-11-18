@@ -11,4 +11,3 @@ boto3
 boto3-stubs[essential,s3,textract]
 pytest
 numpy
-typing-extensions < 4.12.0

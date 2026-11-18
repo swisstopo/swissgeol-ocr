@@ -1,4 +1,5 @@
 import logging
+import sys
 
 otel_paths = [p for p in sys.path if "otel-auto-instrumentation-python" in p]
 if otel_paths:
@@ -11,7 +12,6 @@ import shutil
 import uuid
 import random
 from typing import Annotated
-import sys
 
 from fastapi import FastAPI, Depends, logger, status, HTTPException, BackgroundTasks, Response
 from pydantic import BaseModel, Field

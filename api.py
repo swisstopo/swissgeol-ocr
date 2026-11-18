@@ -1,4 +1,7 @@
 import logging
+
+logging.warning(f"API running with the following sys.path: {sys.path}")
+
 import os
 import shutil
 import uuid
@@ -19,7 +22,6 @@ from aws import aws
 from utils import task
 from utils.settings import ApiSettings, api_settings
 
-logging.warning(f"API running with the following sys.path: {sys.path}")
 app = FastAPI()
 class StartPayload(BaseModel):
     file: str = Field(min_length=1)

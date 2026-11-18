@@ -32,7 +32,7 @@ jobs:
       version: ${{ steps.find_version.outputs.result || github.event.inputs.version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ github.event.inputs.version == '' }}
       - name: Get tags of edge commit
         id: get_edge_tags
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Create image
         uses: ./.github/actions/create-image
         with:
@@ -98,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: tag edge
         if: ${{ env.IS_EDGE == 'true' }}
         uses: ./.github/actions/tag-commit

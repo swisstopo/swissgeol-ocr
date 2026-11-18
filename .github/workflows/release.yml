@@ -37,12 +37,12 @@ jobs:
       previous_version: ${{ steps.find_versions.outputs.previous_version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Find versions
         id: find_versions
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const { findMostRecentVersion, findPreviousVersion, makeVersionTag } = require('./.github/scripts/find-version.js');
@@ -72,7 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Create image
         uses: ./.github/actions/create-image
         with:
@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: tag latest
         uses: ./.github/actions/tag-commit
         with:
@@ -125,7 +125,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Create release
@@ -146,7 +146,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v9
       - name: Setup node
         run: |
           npm install @octokit/rest
@@ -158,7 +158,7 @@ jobs:
           TAGS=${TAGS%,}
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
       - name: Remove outdated versions
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BASE_IMAGE_NAME: ${{ vars.BASE_IMAGE_NAME }}

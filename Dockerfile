@@ -4,7 +4,9 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends ghostscript gcc \
  && rm -rf /var/lib/apt/lists/*
 
-RUN useradd --create-home appuser
+ RUN useradd --create-home appuser \
+  && mkdir -p /app \
+  && chown appuser /app
 USER appuser
 WORKDIR /app
 

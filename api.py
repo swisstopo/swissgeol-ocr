@@ -11,6 +11,8 @@ otel_path = "/otel-auto-instrumentation-python"
 if otel_path in sys.path:
     sys.path.remove(otel_path)
     sys.path.append(otel_path)
+print(sys.path)
+sys.modules.pop("typing_extensions", None)
 
 from fastapi import FastAPI, Depends, status, HTTPException, BackgroundTasks, Response
 from pydantic import BaseModel, Field

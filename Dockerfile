@@ -19,7 +19,4 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY --chown=appuser . .
 
-# Unset PYTHONPATH so /otel-auto-instrumentation-python (if injected via the
-# OTel operator / opentelemetry-instrument) never lands on sys.path and its
-# sitecustomize.py is never loaded. Everything needed is in the venv.
-ENTRYPOINT ["env", "-u", "PYTHONPATH", "fastapi", "run", "api.py"]
+ENTRYPOINT ["fastapi", "run", "api.py"]

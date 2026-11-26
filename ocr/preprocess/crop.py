@@ -95,7 +95,7 @@ def crop_images(out_doc: pymupdf.Document, page_index: int):
                 crop.transform(transform_inv)
                 crop.transform(img_size)
                 crop = crop.round()
-                img = _pixmap_from_xref(out_doc, xref)
+                img = _pixmap_from_xref(out_doc, xref, extracted_img["smask"])
 
                 # Concert to Pillow image for cropping, since cropping as PixMap causes uncontrollable caching in
                 # MuPDF, leading to memory leaks.
@@ -134,8 +134,7 @@ def replace_jpx_images(doc: pymupdf.Document, page_index: int):
                 # Therefore, we convert them to JPG.
                 image_bbox = pymupdf.Rect(*dict["bbox"])
                 logging.info(f"  Converting JPX image to JPG (bbox {image_bbox}, page.rect {page.rect}).")
-
-                img = _pixmap_from_xref(doc, xref)
+                img = _pixmap_from_xref(doc, xref, extracted_img["smask"])
                 if img:
                     page.replace_image(xref, stream=img.tobytes('jpg', jpg_quality=85))
         except ValueError:
@@ -179,7 +178,7 @@ def downscale_images_x2(doc: pymupdf.Document, page_index: int) -> bool:
     return downscale_successful
 
 
-def _pixmap_from_xref(doc: pymupdf.Document, xref: int) -> pymupdf.Pixmap:
+def _pixmap_from_xref(doc: pymupdf.Document, xref: int, smask: int) -> pymupdf.Pixmap:
     try:
         img = pymupdf.Pixmap(doc, xref)
 
@@ -188,6 +187,13 @@ def _pixmap_from_xref(doc: pymupdf.Document, xref: int) -> pymupdf.Pixmap:
             png = img.tobytes()  # convert it to a PNG
             img = pymupdf.Pixmap(png)  # re-open from a memory PNG
             img.invert_irect()  # invert the b&w pixmap
+
+        if smask:
+            mask_pix = pymupdf.Pixmap(doc, smask)
+
+            # Inject the mask data directly into the Alpha channel of the RGBA pixmap
+            # The 'set_alpha' method uses a grayscale pixmap to define opacity maps.
+            img.set_alpha(mask_pix)
 
         return img
     except FzErrorFormat:

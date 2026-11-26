@@ -137,7 +137,7 @@ def replace_jpx_images(doc: pymupdf.Document, page_index: int):
                 # Therefore, we convert them to JPG.
                 image_bbox = pymupdf.Rect(*dict["bbox"])
                 if extracted_img["smask"]:
-                    logging.info(f"  Skipping conersion of JPX image due to the presence of a mask (bbox {image_bbox}, page.rect {page.rect}).")
+                    logging.info(f"  Skipping conversion of JPX image due to the presence of a mask (bbox {image_bbox}, page.rect {page.rect}).")
                 else:
                     logging.info(f"  Converting JPX image to JPG (bbox {image_bbox}, page.rect {page.rect}).")
                     img = _pixmap_from_xref(doc, xref)

@@ -1,6 +1,6 @@
 amazon-textract-caller
 backoff
-pymupdf >= 1.26.4
+pymupdf >= 2.1
 reportlab
 python-dotenv
 python-multipart

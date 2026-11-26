@@ -136,13 +136,13 @@ def replace_jpx_images(doc: pymupdf.Document, page_index: int):
                 # Some viewer, most notably the Edge browser, have problems displaying JPX images (slow / bad quality).
                 # Therefore, we convert them to JPG.
                 image_bbox = pymupdf.Rect(*dict["bbox"])
-                if extracted_img["smask"]:
-                    logging.info(f"  Skipping conversion of JPX image due to the presence of a mask (bbox {image_bbox}, page.rect {page.rect}).")
-                else:
-                    logging.info(f"  Converting JPX image to JPG (bbox {image_bbox}, page.rect {page.rect}).")
-                    img = _pixmap_from_xref(doc, xref)
-                    if img:
-                        page.replace_image(xref, stream=img.tobytes('jpg', jpg_quality=85))
+                logging.info(f"  Converting JPX image to JPG (bbox {image_bbox}, page.rect {page.rect}).")
+                img = _pixmap_from_xref(doc, xref)
+                if img:
+                    page.replace_image(xref, stream=img.tobytes('jpg', jpg_quality=85)) 
+                    if extracted_img["smask"]:
+                        # Re-attach the original SMask xref to the image dictionary
+                        doc.xref_set_key(xref, "Mask", f"{extracted_img["smask"]} 0 R")
         except ValueError:
             logging.info(f"  Encountered ValueError for xref {xref}, skipping replace_jpx_images.")
 

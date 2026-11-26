@@ -95,6 +95,9 @@ def crop_images(out_doc: pymupdf.Document, page_index: int):
                 crop.transform(transform_inv)
                 crop.transform(img_size)
                 crop = crop.round()
+                if extracted_img["smask"]:
+                    logging.info("  Skipping crop due to the presence of a mask.")
+                    continue
                 img = _pixmap_from_xref(out_doc, xref)
 
                 # Concert to Pillow image for cropping, since cropping as PixMap causes uncontrollable caching in
@@ -133,11 +136,13 @@ def replace_jpx_images(doc: pymupdf.Document, page_index: int):
                 # Some viewer, most notably the Edge browser, have problems displaying JPX images (slow / bad quality).
                 # Therefore, we convert them to JPG.
                 image_bbox = pymupdf.Rect(*dict["bbox"])
-                logging.info(f"  Converting JPX image to JPG (bbox {image_bbox}, page.rect {page.rect}).")
-
-                img = _pixmap_from_xref(doc, xref)
-                if img:
-                    page.replace_image(xref, stream=img.tobytes('jpg', jpg_quality=85))
+                if extracted_img["smask"]:
+                    logging.info(f"  Skipping conversion of JPX image due to the presence of a mask (bbox {image_bbox}, page.rect {page.rect}).")
+                else:
+                    logging.info(f"  Converting JPX image to JPG (bbox {image_bbox}, page.rect {page.rect}).")
+                    img = _pixmap_from_xref(doc, xref)
+                    if img:
+                        page.replace_image(xref, stream=img.tobytes('jpg', jpg_quality=85))
         except ValueError:
             logging.info(f"  Encountered ValueError for xref {xref}, skipping replace_jpx_images.")
 

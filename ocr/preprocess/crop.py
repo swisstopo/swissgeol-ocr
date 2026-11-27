@@ -136,13 +136,26 @@ def replace_jpx_images(doc: pymupdf.Document, page_index: int):
                 # Some viewer, most notably the Edge browser, have problems displaying JPX images (slow / bad quality).
                 # Therefore, we convert them to JPG.
                 image_bbox = pymupdf.Rect(*dict["bbox"])
-                if extracted_img["smask"]:
-                    logging.info(f"  Skipping conversion of JPX image due to the presence of a mask (bbox {image_bbox}, page.rect {page.rect}).")
-                else:
-                    logging.info(f"  Converting JPX image to JPG (bbox {image_bbox}, page.rect {page.rect}).")
-                    img = _pixmap_from_xref(doc, xref)
-                    if img:
-                        page.replace_image(xref, stream=img.tobytes('jpg', jpg_quality=85))
+                logging.info(f"  Converting JPX image to JPG (bbox {image_bbox}, page.rect {page.rect}).")
+                
+                # extracted_img["smask"] does not tell us if it's a Mask or an SMask, so we need to inspect the
+                # PDF objects in more detail.
+                smask_type, smask_val = doc.xref_get_key(xref, "SMask")
+                mask_type, mask_val = doc.xref_get_key(xref, "Mask")
+                if mask_type == "array":
+                    logging.info("  Skipping JPX conversion due to a color-key mask.")
+                    continue
+
+                img = _pixmap_from_xref(doc, xref)
+                if img:
+                    page.replace_image(xref, stream=img.tobytes('jpg', jpg_quality=85))
+
+                    if smask_type == "xref":
+                        doc.xref_set_key(xref, "SMask", smask_val)
+                        logging.info(f"  Copied SMask ({smask_val})")
+                    if mask_type in ("xref", "array"):
+                        doc.xref_set_key(xref, "Mask", mask_val)
+                        logging.info(f"  Copied Explicit Mask ({mask_type}: {mask_val})")
         except ValueError:
             logging.info(f"  Encountered ValueError for xref {xref}, skipping replace_jpx_images.")
 

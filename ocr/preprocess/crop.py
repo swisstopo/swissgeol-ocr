@@ -142,6 +142,9 @@ def replace_jpx_images(doc: pymupdf.Document, page_index: int):
                 # PDF objects in more detail.
                 smask_type, smask_val = doc.xref_get_key(xref, "SMask")
                 mask_type, mask_val = doc.xref_get_key(xref, "Mask")
+                if mask_type == "array":
+                    logging.info("  Skipping JPX conversion due to a color-key mask.")
+                    continue
 
                 img = _pixmap_from_xref(doc, xref)
                 if img:
